@@ -5,17 +5,20 @@
 /// <https://docs.substrate.io/v3/runtime/frame>
 pub use pallet::*;
 
-#[cfg(test)]
-mod mock;
+use sp_runtime::traits::{AtLeast32BitUnsigned};
 
-#[cfg(test)]
-mod tests;
+// #[cfg(test)]
+// mod mock;
+
+// #[cfg(test)]
+// mod tests;
 
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking;
 
 #[frame_support::pallet]
 pub mod pallet {
+	use super::*;
 	use frame_support::pallet_prelude::*;
 	use frame_system::pallet_prelude::*;
 
@@ -24,6 +27,16 @@ pub mod pallet {
 	pub trait Config: frame_system::Config {
 		/// Because this pallet emits events, it depends on the runtime's definition of an event.
 		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
+		type Balance: Member 
+			+ Parameter
+			+ AtLeast32BitUnsigned
+			+ Default
+			+ Copy;
+		type AssetID: Member 
+			+ Parameter 
+			+ AtLeast32BitUnsigned 
+			+ Default 
+			+ Copy; 
 	}
 
 	#[pallet::pallet]
