@@ -27,11 +27,13 @@ pub mod pallet {
 	pub trait Config: frame_system::Config {
 		/// Because this pallet emits events, it depends on the runtime's definition of an event.
 		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
+		///	The units in which we record balances
 		type Balance: Member 
 			+ Parameter
 			+ AtLeast32BitUnsigned
 			+ Default
 			+ Copy;
+		///	The arithmetic type of asset identifier
 		type AssetID: Member 
 			+ Parameter 
 			+ AtLeast32BitUnsigned 
@@ -58,7 +60,9 @@ pub mod pallet {
 	pub enum Event<T: Config> {
 		/// Event documentation should end with an array that provides descriptive names for event
 		/// parameters. [something, who]
-		SomethingStored(u32, T::AccountId),
+		Issued { asset_id: T::AssetID, account_id: T::AccountId, balance: T::Balance },
+		Burned { asset_id: T::AssetID, account_id: T::AccountId, balance: T::Balance},
+		Transferred { asset_id: T::AssetID, from: T::AccountId, to: T::AccountId, amount: T::Balance}
 	}
 
 	// Errors inform users that something went wrong.
@@ -84,12 +88,6 @@ pub mod pallet {
 			// https://docs.substrate.io/v3/runtime/origins
 			let who = ensure_signed(origin)?;
 
-			// Update storage.
-			<Something<T>>::put(something);
-
-			// Emit an event.
-			Self::deposit_event(Event::SomethingStored(something, who));
-			// Return a successful DispatchResultWithPostInfo
 			Ok(())
 		}
 
