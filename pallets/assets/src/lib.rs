@@ -4,24 +4,26 @@
 /// Learn more about FRAME and the core library of Substrate FRAME pallets:
 /// <https://docs.substrate.io/v3/runtime/frame>
 pub use pallet::*;
-
-use sp_runtime::traits::{AtLeast32BitUnsigned};
-
+use sp_std::prelude::*;
+use sp_runtime::{traits::{AtLeast32BitUnsigned, One}, ArithmeticError};
+use codec::HasCompact;
 // #[cfg(test)]
 // mod mock;
 
 // #[cfg(test)]
 // mod tests;
-
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking;
 
 #[frame_support::pallet]
 pub mod pallet {
 	use super::*;
-	use frame_support::pallet_prelude::*;
-	use frame_system::pallet_prelude::*;
+	use frame_support::{pallet_prelude::*, dispatch::DispatchResultWithPostInfo, Blake2_128Concat, Twox64Concat};
+	use frame_system::{pallet_prelude::*, Origin};
 
+	#[pallet::pallet]
+	#[pallet::generate_store(pub(super) trait Store)]
+	pub struct Pallet<T>(_);
 	/// Configure the pallet by specifying the parameters and types on which it depends.
 	#[pallet::config]
 	pub trait Config: frame_system::Config {
@@ -31,30 +33,44 @@ pub mod pallet {
 		type Balance: Member 
 			+ Parameter
 			+ AtLeast32BitUnsigned
+			+ MaxEncodedLen
 			+ Default
 			+ Copy;
 		///	The arithmetic type of asset identifier
 		type AssetID: Member 
 			+ Parameter 
-			+ AtLeast32BitUnsigned 
-			+ Default 
+			+ Default
+			+ TypeInfo
+			+ HasCompact
+			+ MaxEncodedLen 
 			+ Copy; 
 	}
 
-	#[pallet::pallet]
-	#[pallet::generate_store(pub(super) trait Store)]
-	pub struct Pallet<T>(_);
-
-	// The pallet's runtime storage items.
-	// https://docs.substrate.io/v3/runtime/storage
+	///	Asset Id 
 	#[pallet::storage]
-	#[pallet::getter(fn something)]
-	// Learn more about declaring storage items:
-	// https://docs.substrate.io/v3/runtime/storage#declaring-storage-items
-	pub type Something<T> = StorageValue<_, u32>;
+	#[pallet::getter(fn next_id)]
+	pub type NextAssetId<T: Config> = StorageValue<_, T::AssetID, ValueQuery>;
 
-	// Pallets use events to inform users when important changes are made.
-	// https://docs.substrate.io/v3/runtime/events-and-errors
+	///	Asset Object
+	#[pallet::storage]
+	#[pallet::getter(fn get_asset)]
+	pub type TotalSupply<T: Config> = StorageMap<
+		_, Twox64Concat, T::AssetID, T::Balance, ValueQuery>;
+	/// The number of units of assets held by any given account
+	#[pallet::storage]
+	#[pallet::getter(fn get_balances)]
+	pub type Balances<T: Config> = StorageMap<
+		_, Blake2_128Concat, (T::AssetID, T::AccountId), T::Balance, ValueQuery>;
+	/// The inherent asset in this platform
+	#[pallet::storage]
+	#[pallet::getter(fn get_inherent_asset)]
+	pub type PlatformAsset<T: Config> = StorageValue<_, T::AssetID>;
+	///	The Price of the asset
+	#[pallet::storage]
+	#[pallet::getter(fn price)]
+	pub type Price<T: Config> = StorageMap<
+		_, Twox64Concat, T::AssetID, sp_runtime::FixedI128, ValueQuery>;
+
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
@@ -79,35 +95,37 @@ pub mod pallet {
 	// Dispatchable functions must be annotated with a weight and must return a DispatchResult.
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
-		/// An example dispatchable that takes a singles value as a parameter, writes the value to
-		/// storage and emits an event. This function must be dispatched by a signed extrinsic.
-		#[pallet::weight(10_000 + T::DbWeight::get().writes(1))]
-		pub fn do_something(origin: OriginFor<T>, something: u32) -> DispatchResult {
-			// Check that the extrinsic was signed and get the signer.
-			// This function will return an error if the extrinsic is not signed.
-			// https://docs.substrate.io/v3/runtime/origins
-			let who = ensure_signed(origin)?;
+		///	Mint Assets 
+		/// Issue new assets in a permissioned way, if permissionless, then with a deposit is required
+		#[pallet::weight(0)]
+		pub fn mint(origin: OriginFor<T>) -> DispatchResultWithPostInfo { 
+
+			Ok(().into())
+		}
+		///	Transfer Asset
+		/// Move assets between accounts
+		#[pallet::weight(0)]
+		pub fn transfer(origin: OriginFor<T>) -> DispatchResultWithPostInfo { 
+
+			Ok(().into())
+		}
+		///	Burn Assets
+		/// Decrease the asset balance of an account
+		#[pallet::weight(0)]
+		pub fn burn(origin: OriginFor<T>) -> DispatchResult { 
 
 			Ok(())
 		}
-
-		/// An example dispatchable that may throw a custom error.
-		#[pallet::weight(10_000 + T::DbWeight::get().reads_writes(1,1))]
-		pub fn cause_error(origin: OriginFor<T>) -> DispatchResult {
-			let _who = ensure_signed(origin)?;
-
-			// Read a value from storage.
-			match <Something<T>>::get() {
-				// Return an error if the value has not been set.
-				None => Err(Error::<T>::NoneValue)?,
-				Some(old) => {
-					// Increment the value read from storage; will error in the event of overflow.
-					let new = old.checked_add(1).ok_or(Error::<T>::StorageOverflow)?;
-					// Update the value in storage with the incremented result.
-					<Something<T>>::put(new);
-					Ok(())
-				},
-			}
+ 	}
+	impl<T: Config> Pallet<T> { 
+		fn get_next_id() -> Result<T::AssetID, DispatchError> { 
+			NextAssetId::<T>::try_mutate(|id| -> Result<T::AssetID, DispatchError> { 
+				let curr_id = *id;
+				*id = id.checked_add(One::one())
+					.ok_or(ArithmeticError::Overflow)?;
+				Ok(curr_id)
+			})
 		}
 	}
+	
 }
