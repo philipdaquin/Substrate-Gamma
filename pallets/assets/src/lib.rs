@@ -5,20 +5,20 @@
 /// <https://docs.substrate.io/v3/runtime/frame>
 pub use pallet::*;
 use sp_std::prelude::*;
-use sp_runtime::{traits::{AtLeast32BitUnsigned, One}, ArithmeticError};
+use sp_runtime::{traits::{AtLeast32BitUnsigned, One, Zero}, ArithmeticError };
 use codec::HasCompact;
 // #[cfg(test)]
 // mod mock;
-
 // #[cfg(test)]
 // mod tests;
+
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking;
 
 #[frame_support::pallet]
 pub mod pallet {
 	use super::*;
-	use frame_support::{pallet_prelude::*, dispatch::DispatchResultWithPostInfo, Blake2_128Concat, Twox64Concat};
+	use frame_support::{pallet_prelude::*, dispatch::DispatchResultWithPostInfo, Blake2_128Concat, Twox64Concat, traits::EnsureOrigin};
 	use frame_system::{pallet_prelude::*, Origin};
 
 	#[pallet::pallet]
@@ -41,9 +41,13 @@ pub mod pallet {
 			+ Parameter 
 			+ Default
 			+ TypeInfo
+			+ AtLeast32BitUnsigned
 			+ HasCompact
 			+ MaxEncodedLen 
-			+ Copy; 
+			+ Copy;
+		//	The origin which may forcibly create or destroy an asset or otherwise alter 
+		//	priviledged attributes
+		type ForceOrigin: EnsureOrigin<Self::Origin>;
 	}
 
 	///	Asset Id 
@@ -86,8 +90,10 @@ pub mod pallet {
 	pub enum Error<T> {
 		/// Error names should be descriptive.
 		NoneValue,
-		/// Errors should have helpful documentation associated with them.
-		StorageOverflow,
+		///	The given asset ID is unknown
+		Unknown,
+		///	Insufficient Balance
+		InsufficientBalance
 	}
 
 	// Dispatchable functions allows users to interact with the pallet and invoke state changes.
@@ -98,34 +104,97 @@ pub mod pallet {
 		///	Mint Assets 
 		/// Issue new assets in a permissioned way, if permissionless, then with a deposit is required
 		#[pallet::weight(0)]
-		pub fn mint(origin: OriginFor<T>) -> DispatchResultWithPostInfo { 
-
+		pub fn mint(origin: OriginFor<T>, total: T::Balance) -> DispatchResultWithPostInfo { 
+			//	User Signs in 
+			let account_id = ensure_signed(origin)?;
+			
+			ensure!(!total.is_zero(), Error::<T>::NoneValue);
+			let asset_id = Self::get_next_id().ok().ok_or(Error::<T>::Unknown)?;
+			// Increment User Balance 
+			Balances::<T>::insert((asset_id, account_id.clone()), total);
+			//	Select TotalSupply insert_into AssetId 
+			TotalSupply::<T>::insert(asset_id, total);
+			//	Events 
+			Self::deposit_event(Event::<T>::Issued {asset_id, account_id: account_id, balance: total});
 			Ok(().into())
 		}
 		///	Transfer Asset
 		/// Move assets between accounts
 		#[pallet::weight(0)]
-		pub fn transfer(origin: OriginFor<T>) -> DispatchResultWithPostInfo { 
-
-			Ok(().into())
+		pub fn transfer(
+			origin: OriginFor<T>, 
+			from: T::AccountId, 
+			value: T::Balance,
+			asset_id: T::AssetID
+		) -> DispatchResult { 
+			//	User Sign in 
+			let account_id = ensure_signed(origin)?;
+			Self::transfer_asset(
+				account_id.clone(), 
+				from.clone(), 
+				value, 
+				asset_id,
+				Event::<T>::Transferred { 
+					asset_id,
+					from: from,
+					to: account_id,
+					amount: value 
+				}
+			)
+			
 		}
 		///	Burn Assets
 		/// Decrease the asset balance of an account
 		#[pallet::weight(0)]
-		pub fn burn(origin: OriginFor<T>) -> DispatchResult { 
+		pub fn burn(origin: OriginFor<T>, value: T::Balance, asset_id: T::AssetID) -> DispatchResult { 
+			let account_id = ensure_signed(origin)?;
+			ensure!(!value.is_zero(), Error::<T>::NoneValue);
+			let balance = Balances::<T>::take((asset_id, account_id.clone()));
+
+			TotalSupply::<T>::mutate(asset_id, |supply| *supply -= balance);
+			Self::deposit_event(Event::<T>::Burned {
+				asset_id, 
+				account_id, 
+				balance
+			 });
 
 			Ok(())
 		}
  	}
 	impl<T: Config> Pallet<T> { 
-		fn get_next_id() -> Result<T::AssetID, DispatchError> { 
-			NextAssetId::<T>::try_mutate(|id| -> Result<T::AssetID, DispatchError> { 
-				let curr_id = *id;
-				*id = id.checked_add(One::one())
-					.ok_or(ArithmeticError::Overflow)?;
-				Ok(curr_id)
-			})
+		fn get_next_id() ->  Result<T::AssetID, DispatchError>{ 
+			let id = Self::next_id();
+			NextAssetId::<T>::mutate(|id| *id += One::one());
+			Ok(id)
+		}
+		fn transfer_asset(
+			from: T::AccountId, 
+			to: T::AccountId, 
+			value: T::Balance,
+			asset_id: T::AssetID,
+			transferred: Event<T>
+		) -> DispatchResult { 
+			let (target_account, user_account) = 
+			((asset_id, to), (asset_id, from));
+			//	Get user Balance 
+			let user_balance = Self::get_balances(user_account.clone());
+			//	Check the balance of sender
+			ensure!(user_balance >= value, Error::<T>::InsufficientBalance);
+			ensure!(!value.is_zero(), Error::<T>::NoneValue);
+			//Balances::<T>::mutate((asset_id, from), |balance| *balance -= value);
+			//	Insert: so we can reuse the user_balance stored in cache to recalculate the new balanace
+			Balances::<T>::insert(user_account, user_balance - value);
+			Balances::<T>::mutate(target_account, |target_balance| *target_balance += value);
+
+			Self::deposit_event(transferred);
+			Ok(())
+		}
+		//	Query the totalsupply for a specified AssetId 
+		fn get_supply_by_id(asset_id: T::AssetID) -> Result<T::Balance, DispatchError> { 
+			Ok(TotalSupply::<T>::get(asset_id))
+		}
+		fn get_balance_by_user(account_id: T::AccountId, asset_id: T::AssetID) -> Result<T::Balance, DispatchError> { 
+			Ok(Balances::<T>::get((asset_id, account_id)))
 		}
 	}
-	
 }
