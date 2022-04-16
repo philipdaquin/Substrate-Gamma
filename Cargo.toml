@@ -2,6 +2,7 @@
 members = [
     "node",
     "pallets/assets",
+    "pallets/loans",
     "runtime",
 ]
 [profile.release]

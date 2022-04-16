@@ -189,6 +189,7 @@ pub mod pallet {
 			Self::deposit_event(transferred);
 			Ok(())
 		}
+		//	API Queries 
 		//	Query the totalsupply for a specified AssetId 
 		fn get_supply_by_id(asset_id: T::AssetID) -> Result<T::Balance, DispatchError> { 
 			Ok(TotalSupply::<T>::get(asset_id))
