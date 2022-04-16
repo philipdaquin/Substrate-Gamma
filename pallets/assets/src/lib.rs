@@ -5,7 +5,7 @@
 /// <https://docs.substrate.io/v3/runtime/frame>
 pub use pallet::*;
 use sp_std::prelude::*;
-use sp_runtime::{traits::{AtLeast32BitUnsigned, One, Zero}, ArithmeticError };
+use sp_runtime::{traits::{AtLeast32BitUnsigned, One, Zero}, ArithmeticError, FixedU128 };
 use codec::HasCompact;
 // #[cfg(test)]
 // mod mock;
@@ -71,9 +71,9 @@ pub mod pallet {
 	pub type PlatformAsset<T: Config> = StorageValue<_, T::AssetID>;
 	///	The Price of the asset
 	#[pallet::storage]
-	#[pallet::getter(fn price)]
+	#[pallet::getter(fn get_price)]
 	pub type Price<T: Config> = StorageMap<
-		_, Twox64Concat, T::AssetID, sp_runtime::FixedI128, ValueQuery>;
+		_, Twox64Concat, T::AssetID, FixedU128, ValueQuery>;
 
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
@@ -82,7 +82,8 @@ pub mod pallet {
 		/// parameters. [something, who]
 		Issued { asset_id: T::AssetID, account_id: T::AccountId, balance: T::Balance },
 		Burned { asset_id: T::AssetID, account_id: T::AccountId, balance: T::Balance},
-		Transferred { asset_id: T::AssetID, from: T::AccountId, to: T::AccountId, amount: T::Balance}
+		Transferred { asset_id: T::AssetID, from: T::AccountId, to: T::AccountId, amount: T::Balance}, 
+		NewPrice {asset_id: T::AssetID, price: FixedU128, account_id: T::AccountId}
 	}
 
 	// Errors inform users that something went wrong.
@@ -160,6 +161,12 @@ pub mod pallet {
 
 			Ok(())
 		}
+		#[pallet::weight(0)]
+		pub fn submit_price(origin: OriginFor<T>, asset_id: T::AssetID, price: FixedU128) -> DispatchResult { 
+			let account_id = ensure_signed(origin)?;
+			Self::add_price(account_id, price, asset_id);
+			Ok(())
+		}
  	}
 	impl<T: Config> Pallet<T> { 
 		fn get_next_id() ->  Result<T::AssetID, DispatchError>{ 
@@ -189,6 +196,12 @@ pub mod pallet {
 			Self::deposit_event(transferred);
 			Ok(())
 		}
+		fn add_price(account_id: T::AccountId, price: FixedU128, asset_id: T::AssetID) -> DispatchResult { 
+			Price::<T>::insert(asset_id, price);
+			
+			Self::deposit_event(Event::<T>::NewPrice {asset_id, price, account_id });			
+			Ok(())
+		}
 		//	API Queries 
 		//	Query the totalsupply for a specified AssetId 
 		fn get_supply_by_id(asset_id: T::AssetID) -> Result<T::Balance, DispatchError> { 
@@ -199,3 +212,4 @@ pub mod pallet {
 		}
 	}
 }
+ 

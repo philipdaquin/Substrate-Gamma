@@ -4,18 +4,20 @@
 /// Learn more about FRAME and the core library of Substrate FRAME pallets:
 /// <https://docs.substrate.io/v3/runtime/frame>
 pub use pallet::*;
-use assets;
-use sp_runtime::FixedU128;
+use assets::Pallet;
+use sp_runtime::{FixedU128, offchain::http::Error as HttpError, offchain::http::Request};
 use frame_support::{pallet_prelude::*, dispatch::TransactionPriority};
 use frame_system::{pallet_prelude::{*, BlockNumberFor}, Origin};
-
+use sp_io::offchain;
+use sp_std;
+use lite_json::json::JsonValue;
 // #[cfg(test)]
 // mod tests;
 // #[cfg(feature = "runtime-benchmarks")]
 // mod benchmarking;
 // #[cfg(test)]
 // mod mock;
-
+const API_URL: &str = "https://min-api.cryptocompare.com/data/price?fsym=BTC&tsyms=USD";
 
 #[frame_support::pallet]
 pub mod pallet {
@@ -41,11 +43,13 @@ pub mod pallet {
 	}
 	pub type AssetID<T> = <T as assets::Config>::AssetID;
 
-	// The pallet's runtime storage items.
-	// https://docs.substrate.io/v3/runtime/storage
+	///	Defines the block when the next unsigned transaction will be accepted 
+	/// To prevent the spam of unsigned and unpaid transaction on the network, 
+	/// we have decided to set a constant interval 'T::UnsignedInterval' blocks
+	/// This storage entry defines when new transactions is going to be accepted 
 	#[pallet::storage]
-	#[pallet::getter(fn something)]
-	pub type Price<T> = StorageValue<_, u32>;
+	#[pallet::getter(fn next_unsigned_at)]
+	pub type NextUnsignedAt<T: Config> = StorageValue<_, T::BlockNumber, ValueQuery>;
 
 	// Pallets use events to inform users when important changes are made.
 	// https://docs.substrate.io/v3/runtime/events-and-errors
@@ -72,14 +76,76 @@ pub mod pallet {
 		
 	}
 	impl<T: Config> Pallet<T> { 
-		
+		///	Unsigned Transactions
+		///	A helper function to fetch the price and send a raw unsigned transaction
+		fn fetch_price_and_send_raw_unsigned(blocknumber: T::BlockNumber) -> DispatchResult { 
+			let next_unsigned = Self::next_unsigned_at();
+			ensure!(next_unsigned > blocknumber, Error::<T>::TooEarlyToSend);
+
+			///	Fetch the current price from an external Api
+			
+
+
+
+
+			Ok(())
+		}
+		fn fetch_prices() -> Result<u32, HttpError> { 
+			let (request, deadline) = (Request::get(API_URL), 
+				offchain::timestamp().add(sp_runtime::offchain::Duration::from_millis(2000)));;
+			let pending = request 
+				.deadline(deadline)
+				.send()
+				.map_err(|_| HttpError::IoError)?;
+			let response = pending.try_wait(deadline).map_err(|_| HttpError::DeadlineReached)??;
+			if response.code != 200 { 
+				log::warn!("Unexpected Code {:?}", response.code.clone());
+				return Err(HttpError::Unknown);
+			}
+			//	JSON Bytes
+			let body = response.body().collect::<Vec<_>>();
+			//	Bytes to str 
+			let body_str = sp_std::str::from_utf8(&body).expect("No UTF8 body");
+			let price = match Self::parse_price(body_str) { 
+				Some(p) => Ok(p),
+				_ => { 
+					log::warn!("{:?}", body_str);
+					Err(HttpError::Unknown)
+				}
+			}?;
+			log::info!("{:?}", price);
+			Ok(price)
+
+		}
+		/// Parse the price from the given JSON string using lite json 
+		fn parse_price(price_str: &str) -> Option<u32> { 
+			let val = lite_json::parse_json(price_str)
+				.ok()
+				.and_then(|price| match price { 
+					JsonValue::Object(p) => { 
+						let mut chars = "USD".chars();
+						p.into_iter()
+							.find(|(k, _)| k.iter().all(|k| Some(*k) == chars.next()))
+							.and_then(|v| match v.1 { 
+								JsonValue::Number(num) => Some(num),
+								_ => None
+							})
+					},
+					_ => None
+				})?;
+				let exp = val.fraction_length.checked_sub(2).unwrap_or(0);
+				Some(val.integer as u32 * 100 + (val.fraction / 10_u64.pow(exp)) as u32)
+		}
 	}
 	#[pallet::hooks]
 	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> { 
 		fn offchain_worker(blocknumber: T::BlockNumber) { 
 			log::info!("👋 This is the mutha fuckin offchain worker boiiii 🚀🚀🚀🚀");
 			log::debug!("📢 Current blocknumber {:?}", blocknumber);
-			let current_price = ;
+
+			let asset_id = AssetID::<T>::from(4u32);
+			let current_price = assets::Price::<T>::get(asset_id);
+			
 			log::debug!("{:?}", current_price);
 		}
 	}
@@ -90,6 +156,8 @@ pub mod pallet {
 		NoneValue,
 		/// Errors should have helpful documentation associated with them.
 		StorageOverflow,
+
+		TooEarlyToSend,
 	}
 
 } 
