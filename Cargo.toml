@@ -3,6 +3,7 @@ members = [
     "node",
     "pallets/assets",
     "pallets/loans",
+    "pallets/price_oracle",
     "runtime",
 ]
 [profile.release]
