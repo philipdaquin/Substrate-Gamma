@@ -5,12 +5,15 @@
 /// <https://docs.substrate.io/v3/runtime/frame>
 pub use pallet::*;
 use assets::Pallet;
-use sp_runtime::{FixedU128, offchain::http::Error as HttpError, offchain::http::Request};
+use sp_runtime::{FixedPointNumber, FixedU128, offchain::http::Error as HttpError, offchain::http::Request};
 use frame_support::{pallet_prelude::*, dispatch::TransactionPriority};
-use frame_system::{pallet_prelude::{*, BlockNumberFor}, Origin};
+use frame_system::{pallet_prelude::{*, BlockNumberFor}, Origin, 
+	offchain::{Signer, SubmitTransaction, CreateSignedTransaction}
+};
 use sp_io::offchain;
-use sp_std;
+use sp_std::vec::Vec;
 use lite_json::json::JsonValue;
+use std::cmp::Ordering;
 // #[cfg(test)]
 // mod tests;
 // #[cfg(feature = "runtime-benchmarks")]
@@ -21,7 +24,9 @@ const API_URL: &str = "https://min-api.cryptocompare.com/data/price?fsym=BTC&tsy
 
 #[frame_support::pallet]
 pub mod pallet {
-	use super::*;
+	use lite_json::Value;
+
+use super::*;
 
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
@@ -29,7 +34,8 @@ pub mod pallet {
 	
 	/// Configure the pallet by specifying the parameters and types on which it depends.
 	#[pallet::config]
-	pub trait Config: frame_system::Config + assets::Config {
+	pub trait Config: frame_system::Config + 
+		assets::Config + CreateSignedTransaction<Call<Self>> {
 		/// Because this pallet emits events, it depends on the runtime's definition of an event.
 		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
 		///	The overacrching dispatch call type 
@@ -51,6 +57,7 @@ pub mod pallet {
 	#[pallet::getter(fn next_unsigned_at)]
 	pub type NextUnsignedAt<T: Config> = StorageValue<_, T::BlockNumber, ValueQuery>;
 
+	
 	// Pallets use events to inform users when important changes are made.
 	// https://docs.substrate.io/v3/runtime/events-and-errors
 	#[pallet::event]
@@ -58,7 +65,6 @@ pub mod pallet {
 	pub enum Event<T: Config> {
 		NewPrice {asset_id: AssetID<T>, price: FixedU128 },
 	}
-	
 	// Dispatchable functions allows users to interact with the pallet and invoke state changes.
 	// These functions materialize as "extrinsics", which are often compared to transactions.
 	// Dispatchable functions must be annotated with a weight and must return a DispatchResult.
@@ -67,10 +73,20 @@ pub mod pallet {
 	
 		///	
 		#[pallet::weight(0)]
-		pub fn submit_price_unsigned(origin: OriginFor<T>,  ) -> DispatchResult { 
-			ensure_none(origin);
-			
-			
+		pub fn submit_price_unsigned(
+			origin: OriginFor<T>, 
+			blocknumber: T::BlockNumber, 
+			price: u32,
+		) -> DispatchResult { 
+			ensure_none(origin)?;
+		
+			let asset_id = <T as assets::Config>::AssetID::from(4u32);
+			let current_block = <frame_system::Pallet<T>>::block_number();
+			let price = FixedU128::from_inner(price.into());
+			NextUnsignedAt::<T>::put(current_block + T::UnsignedInterval::get());
+			assets::Pallet::<T>::set_price(asset_id, price);
+			Self::deposit_event(Event::<T>::NewPrice {asset_id, price});
+
 			Ok(())
 		}
 		
@@ -83,11 +99,12 @@ pub mod pallet {
 			ensure!(next_unsigned > blocknumber, Error::<T>::TooEarlyToSend);
 
 			///	Fetch the current price from an external Api
+			let price = Self::fetch_prices().map_err(|_| Error::<T>::FetchError)?;
+			let call = Call::submit_price_unsigned { blocknumber, price };
 			
-
-
-
-
+			SubmitTransaction::<T, Call<T>>::submit_unsigned_transaction(call.into())
+			.map_err(|()| "Unable to submit unsigned transaction.")?;
+			
 			Ok(())
 		}
 		fn fetch_prices() -> Result<u32, HttpError> { 
@@ -136,6 +153,26 @@ pub mod pallet {
 				let exp = val.fraction_length.checked_sub(2).unwrap_or(0);
 				Some(val.integer as u32 * 100 + (val.fraction / 10_u64.pow(exp)) as u32)
 		}
+		fn validate_transaction_parameters(
+			blocknumber: T::BlockNumber, 
+			new_price: u32
+		) -> TransactionValidity { 
+			let next_unsigned = NextUnsignedAt::<T>::get();
+			
+			if next_unsigned > blocknumber { 
+				return InvalidTransaction::Stale.into();
+			}
+			let curr_block = <frame_system::Pallet<T>>::block_number();
+			if curr_block < blocknumber { 
+				return InvalidTransaction::Future.into();
+			}
+			ValidTransaction::with_tag_prefix("OffChainworker")
+				.priority(T::UnsignedPriority::get())
+				.and_provides(next_unsigned)
+				.longevity(5)
+				.propagate(true)
+				.build()
+		}
 	}
 	#[pallet::hooks]
 	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> { 
@@ -158,6 +195,8 @@ pub mod pallet {
 		StorageOverflow,
 
 		TooEarlyToSend,
+
+		FetchError,
 	}
 
 } 

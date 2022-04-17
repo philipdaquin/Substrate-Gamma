@@ -83,7 +83,7 @@ pub mod pallet {
 		Issued { asset_id: T::AssetID, account_id: T::AccountId, balance: T::Balance },
 		Burned { asset_id: T::AssetID, account_id: T::AccountId, balance: T::Balance},
 		Transferred { asset_id: T::AssetID, from: T::AccountId, to: T::AccountId, amount: T::Balance}, 
-		NewPrice {asset_id: T::AssetID, price: FixedU128, account_id: T::AccountId}
+		NewPrice {asset_id: T::AssetID, price: FixedU128}
 	}
 
 	// Errors inform users that something went wrong.
@@ -164,7 +164,7 @@ pub mod pallet {
 		#[pallet::weight(0)]
 		pub fn submit_price(origin: OriginFor<T>, asset_id: T::AssetID, price: FixedU128) -> DispatchResult { 
 			let account_id = ensure_signed(origin)?;
-			Self::add_price(account_id, price, asset_id);
+			Self::add_price( price, asset_id);
 			Ok(())
 		}
  	}
@@ -196,11 +196,14 @@ pub mod pallet {
 			Self::deposit_event(transferred);
 			Ok(())
 		}
-		fn add_price(account_id: T::AccountId, price: FixedU128, asset_id: T::AssetID) -> DispatchResult { 
+		pub fn add_price(price: FixedU128, asset_id: T::AssetID) -> DispatchResult { 
 			Price::<T>::insert(asset_id, price);
 			
-			Self::deposit_event(Event::<T>::NewPrice {asset_id, price, account_id });			
+			Self::deposit_event(Event::<T>::NewPrice {asset_id, price });			
 			Ok(())
+		}
+		pub fn set_price(asset_id: T::AssetID, price: FixedU128) { 
+			Price::<T>::insert(asset_id, price);
 		}
 		//	API Queries 
 		//	Query the totalsupply for a specified AssetId 
