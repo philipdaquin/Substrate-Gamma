@@ -27,7 +27,7 @@ frame-benchmarking = { default-features = false, version = "4.0.0-dev", git = "h
 # External Dependencies
 serde = { version = "1.0.136", optional = true }
 sp-std = { default-features = false, version = '4.0.0' }
-
+assets = {path="../assets", default-features = false, version = '4.0.0-dev'}
 
 [features]
 default = ["std"]
