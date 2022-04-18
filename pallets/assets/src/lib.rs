@@ -30,21 +30,10 @@ pub mod pallet {
 		/// Because this pallet emits events, it depends on the runtime's definition of an event.
 		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
 		///	The units in which we record balances
-		type Balance: Member 
-			+ Parameter
-			+ AtLeast32BitUnsigned
-			+ MaxEncodedLen
-			+ Default
-			+ Copy;
+		type Balance: Member + Parameter + AtLeast32BitUnsigned + MaxEncodedLen + Default + Copy;
 		///	The arithmetic type of asset identifier
-		type AssetID: Member 
-			+ Parameter 
-			+ Default
-			+ TypeInfo
-			+ AtLeast32BitUnsigned
-			+ HasCompact
-			+ MaxEncodedLen 
-			+ Copy;
+		type AssetID: Member + Parameter + Default + TypeInfo + AtLeast32BitUnsigned + HasCompact 
+			+ MaxEncodedLen + Copy;
 		//	The origin which may forcibly create or destroy an asset or otherwise alter 
 		//	priviledged attributes
 		type ForceOrigin: EnsureOrigin<Self::Origin>;

@@ -3232,6 +3232,7 @@ name = "loans"
 version = "4.0.0-dev"
 dependencies = [
  "assets",
+ "common",
  "frame-benchmarking",
  "frame-support",
  "frame-system",
