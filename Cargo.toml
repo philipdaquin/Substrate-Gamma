@@ -5,6 +5,7 @@ members = [
     "pallets/loans",
     "pallets/price_oracle",
     "runtime",
+    "pallets/common"
 ]
 [profile.release]
 panic = "unwind"
