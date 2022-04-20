@@ -1,27 +1,24 @@
 use super::*;
-use codec::{Decode, Encode};
-use frame_support::RuntimeDebug;
-use sp_runtime::{FixedU128, FixedI128};
-use super::Config;
 
-#[derive(Clone, PartialEq,  RuntimeDebug, Encode, Decode)]
-pub struct Pool<T: Config> { 
+#[derive(PartialEq, RuntimeDebug, Encode, Decode, Clone, TypeInfo, MaxEncodedLen)]
+#[scale_info(skip_type_params(T))]
+pub struct Pool<AssetID, Balance, BlockNumber> { 
     /// If the pool is enabled
     pub enabled: bool,
     /// If the asset can be enabled as collateral
     pub is_collateral: bool,
     /// The underlying asset
-    pub asset: T::AssetID,
+    pub asset: AssetID,
     /// Total supply of the pool 
-    pub total_supply: T::Balance,
+    pub total_supply: Balance,
     /// Total debt of the pool
-    pub debt: T::Balance,
+    pub total_debt: Balance,
     /// Effective index of current total supply
     pub total_supply_index: FixedU128,
     /// Effective index of current total debt
     pub total_debt_index: FixedU128,
     /// The latest timestamp that the pool has accrued interest
-    pub last_updated: T::BlockNumber,
+    pub last_updated: BlockNumber,
     /// One factor of the linear interest model 
     pub utilization_factor: FixedU128,
     /// Another factor of the linear interest model
@@ -35,18 +32,24 @@ pub struct Pool<T: Config> {
 }
 
 /// Information about the User Supplied Assets
-#[derive(PartialEq, RuntimeDebug, Encode, Decode, Clone)]
-pub struct UserAssets<T: Config> { 
+#[derive(PartialEq, RuntimeDebug, Eq, Encode, Decode, Clone, TypeInfo, MaxEncodedLen)]
+#[scale_info(skip_type_params(T))]
+pub struct UserAssets<AssetID, Balance> { 
     /// Asset Id Supplied
-    pub asset_id: T::AssetID,
+    pub asset_id: AssetID,
     /// Amount supplied by the User
-    pub supplied_amount: T::Balance
+    pub supplied_amount: Balance,
+	///	Index 
+	pub index: FixedU128
 }
 /// Information about the User Debt
-#[derive(Clone, PartialEq, RuntimeDebug, Encode, Decode)]
-pub struct UserDebt<T: Config> { 
+#[derive(PartialEq, RuntimeDebug, Eq, Encode, Decode, Clone, TypeInfo, MaxEncodedLen)]
+#[scale_info(skip_type_params(T))]
+pub struct UserDebt<AssetID, Balance> { 
     /// AssetId Owed
-    pub asset_id: T::AssetID, 
+    pub asset_id: AssetID, 
     /// Debt accounted by the User
-    pub debt_amount: T::Balance
+    pub debt_amount: Balance,
+	///	Index 
+	pub index: FixedU128
 }
