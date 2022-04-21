@@ -15,7 +15,7 @@ use frame_system::pallet_prelude::*;
 use sp_runtime::{traits::AtLeast32BitUnsigned};
 use scale_info::TypeInfo;
 use sp_runtime::FixedPointNumber;
-
+use sp_std::{prelude::*, vec::Vec, convert::TryInto};
 
 const PALLET_ID: PalletId = PalletId(*b"Lending2");
 
@@ -73,15 +73,27 @@ use super::*;
 
 	//	User Supply 
 	#[pallet::storage]
-	#[pallet::getter(fn get_user_asset)]
+	#[pallet::getter(fn get_user_supply)]
 	pub type UserAssetInfo<T: Config> = StorageDoubleMap<
 		_, 
 		//	[AssetId, AccountId, UserAsset]
 		Twox64Concat, T::AssetID,
 		Blake2_128Concat, T::AccountId, 
-		Option<UserAssets<T::AssetID, T::Balance>>,
+		UserAssets<T::AssetID, T::Balance>,
 		OptionQuery
 	>;
+
+
+	//	The set of User's Supply 
+	#[pallet::storage]
+	#[pallet::getter(fn user_assets)]
+	pub type UsersAssetsSet<T: Config> = StorageMap<
+		_,
+		Blake2_128Concat,
+		T::AccountId, 
+		Vec<T::AssetID>,
+		
+	>; 
 
 	#[pallet::type_value]
 	pub fn LiquidationThreshold<T: Config>() -> FixedU128 { FixedU128::one()}
@@ -118,19 +130,22 @@ use super::*;
 	impl<T: Config> Pallet<T> {
 		#[pallet::weight(10)]
 		pub fn supply_asset(origin: OriginFor<T>, asset_id: T::AssetID, amount: T::Balance) -> DispatchResult { 
-			let user = ensure_signed(origin)?;
+			let account_id = ensure_signed(origin)?;
 			//	Verify OnChain Database
 			let mut pool = PoolInfo::<T>::get(asset_id).ok_or(Error::<T>::DbPoolNotExist)?;
 			//	Accrue Pool Interest
 			Self::accrue_interest(&mut pool);
 			//	Transfer User Asset to the OnChain Account
 			T::MultiAsset::transfer(
-				user.clone(),
+				account_id.clone(),
 				Self::fund_account_id(),
 				asset_id, 
 				amount 
 			).map_err(|_| Error::<T>::TransferIntoFailed)?;
-			//	Update the User Supplied 
+			//	Update the User Supply Interest 
+			Self::update_user_supply_interest(account_id.clone(), asset_id, &pool, amount, true);
+
+			//	Update the Pool Supply interest 
 
 
 
@@ -172,7 +187,7 @@ use super::*;
 		}
 		///	'Accrue Interest' is the interest on an Asset that has accumulated since the principle investment
 		fn accrue_interest(pool: &mut Pools<T>) { 
-			log::info!("📢 Accruiing User Interst Rate");
+			log::info!("📢 Accruing User Interst Rate");
 			let now = frame_system::Pallet::<T>::block_number();
 			
 			//	Verify if the pool interest has been updated
@@ -194,6 +209,14 @@ use super::*;
 				+ FixedU128::one()
 				* FixedU128::saturating_from_integer(elapsed_time_in_u32);
 			
+			pool.total_supply = supply_multiplier.saturating_mul_int(pool.total_debt);
+			pool.total_supply_index = pool.total_supply_index * supply_multiplier;
+
+			pool.total_debt = debt_multiplier.saturating_mul_int(pool.total_debt);
+			pool.total_supply_index = pool.total_debt_index * debt_multiplier;
+
+			pool.last_updated = now;
+			log::info!("Accrued Interest Rate");
 		}  
 		/// Supply Interest Rate 
 		fn supply_rate_interest(pool: &Pools<T>) -> FixedU128 { 
@@ -213,6 +236,58 @@ use super::*;
 			let utilization_ratio = FixedU128::saturating_from_rational(pool.total_debt, pool.total_supply);
 			pool.initial_interest_rate + pool.utilization_factor * utilization_ratio		
 		}
+
+		fn update_user_supply_interest(
+			account_id: T::AccountId, 
+			asset_id: T::AssetID, 
+			pool: &Pools<T>,
+			amount: T::Balance, 
+			add_on: bool 
+		) { 
+			if let Some(mut user_assets) = Self::get_user_supply(asset_id, account_id) { 
+				//	Calculate the ratio 'total_supply_index' is to 'user_assets.index'
+				let pool_to_user_ratio = pool.total_supply_index / user_assets.index;
+				//	Update the user's supplied amount: pool_to_user ratio * intitial user_assets ratio
+				user_assets.supplied_amount = pool_to_user_ratio.saturating_mul_int(user_assets.supplied_amount);
+				//	Update the User's Index to the Current Pool's supply Index 
+				user_assets.index = pool.total_supply_index;
+				
+				//	Recalculate the user_supplied assets on chain 
+				if add_on { 
+					user_assets.supplied_amount += amount
+				} else { 
+					user_assets.supplied_amount -= amount 
+				}
+				//	For security purposes, the system would only access on chain storage if the 
+				//	the supplied amount is not NULL
+				//	Update the new supplied_amount on chain 
+				if user_assets.supplied_amount != T::Balance::zero() { 
+					UserAssetInfo::<T>::insert(asset_id, account_id, user_assets);
+					log::info!("Updating On-Chain User-to-Pool Ownership");
+				} else { 
+					UserAssetInfo::<T>::remove(asset_id, account_id);
+					//	Update the User Supply Set 
+					let mut assets = Self::user_assets(account_id.clone());
+					assets.retain(|id| *id != asset_id);
+					UsersAssetsSet::<T>::insert(account_id, assets);
+				} 
+			} else if amount != T::Balance::zero() { 
+				log::info!("Updating User's Index");
+				//	Update the user's index unique to the pool 
+				UserAssetInfo::<T>::insert(
+					asset_id, 
+					account_id, 
+					UserAssets::<T::AssetID, T::Balance> { 
+						asset_id, 
+						supplied_amount: amount.clone(), 
+						index: pool.total_supply_index
+					}
+				);
+			}		
+		}
+
+
+		/// -------------------------------------------------------------------------------///
 		///	Runtime Public APIs
 		///	Supply Interest Rate of Pool
 		pub fn get_supply_interest_rate(asset_id: T::AssetID) -> FixedU128 { 
