@@ -15,14 +15,15 @@ use frame_system::pallet_prelude::*;
 use sp_runtime::{traits::AtLeast32BitUnsigned};
 use scale_info::TypeInfo;
 use sp_runtime::FixedPointNumber;
-use sp_std::{prelude::*, vec::Vec, convert::TryInto};
+use sp_std::{prelude::*, vec, convert::TryInto};
 
 const PALLET_ID: PalletId = PalletId(*b"Lending2");
 
 #[frame_support::pallet]
 pub mod pallet {
 
-use super::*;
+	use super::*;
+
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
 	pub struct Pallet<T>(_);
@@ -87,11 +88,11 @@ use super::*;
 	//	The set of User's Supply 
 	#[pallet::storage]
 	#[pallet::getter(fn user_assets)]
-	pub type UsersAssetsSet<T: Config> = StorageMap<
+	pub type UserAssetsSet<T: Config> = StorageMap<
 		_,
 		Blake2_128Concat,
 		T::AccountId, 
-		Vec<T::AssetID>,
+		vec::Vec<T::AssetID>,
 		
 	>; 
 
@@ -224,7 +225,7 @@ use super::*;
 			if pool.total_supply == T::Balance::zero() { 
 				return FixedU128::zero();
 			}
-			///	Utilisation Rate = total debt/ total assets
+			//	Utilisation Rate = total debt/ total assets
 			let utilization_ratio = FixedU128::saturating_from_rational(pool.total_debt, pool.total_supply);
 			Self::borrowing_rate_interest(pool) * utilization_ratio
 		}
@@ -267,21 +268,22 @@ use super::*;
 				} else { 
 					UserAssetInfo::<T>::remove(asset_id, account_id);
 					//	Update the User Supply Set 
-					let mut assets = Self::user_assets(account_id.clone());
+					let mut assets = Self::user_assets(account_id.clone()).ok_or(Error::<T>::DbPoolNotExist).expect("");
 					assets.retain(|id| *id != asset_id);
-					UsersAssetsSet::<T>::insert(account_id, assets);
+					UserAssetsSet::<T>::insert(account_id, assets);
 				} 
 			} else if amount != T::Balance::zero() { 
 				log::info!("Updating User's Index");
+				let asset_set = UserAssets::<T::AssetID, T::Balance> { 
+					asset_id, 
+					supplied_amount: amount.clone(), 
+					index: pool.total_supply_index 
+				};
 				//	Update the user's index unique to the pool 
 				UserAssetInfo::<T>::insert(
 					asset_id, 
 					account_id, 
-					UserAssets::<T::AssetID, T::Balance> { 
-						asset_id, 
-						supplied_amount: amount.clone(), 
-						index: pool.total_supply_index
-					}
+					asset_set	
 				);
 			}		
 		}
