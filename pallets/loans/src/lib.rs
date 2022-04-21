@@ -7,8 +7,8 @@ use common::{MultiAsset, Oracle};
 mod model;
 pub use model::*;
 use codec::{Decode, Encode};
-use frame_support::RuntimeDebug;
-use sp_runtime::{FixedU128, FixedI128,FixedPointOperand, traits::{One, Zero}};
+use frame_support::{RuntimeDebug, PalletId};
+use sp_runtime::{FixedU128, FixedI128,FixedPointOperand, traits::{One, Zero, AccountIdConversion}};
 use codec::{HasCompact, MaxEncodedLen};
 use frame_support::{pallet_prelude::{*, Member, ValueQuery}, Blake2_128Concat};
 use frame_system::pallet_prelude::*;
@@ -16,6 +16,8 @@ use sp_runtime::{traits::AtLeast32BitUnsigned};
 use scale_info::TypeInfo;
 use sp_runtime::FixedPointNumber;
 
+
+const PALLET_ID: PalletId = PalletId(*b"Lending2");
 
 #[frame_support::pallet]
 pub mod pallet {
@@ -105,7 +107,8 @@ use super::*;
 	pub enum Error<T> {
 		///	OnChain Does not Exist
 		DbPoolNotExist,
-		UnableIntoU32
+		UnableIntoU32,
+		TransferIntoFailed
 	}
 
 	// Dispatchable functions allows users to interact with the pallet and invoke state changes.
@@ -118,7 +121,17 @@ use super::*;
 			let user = ensure_signed(origin)?;
 			//	Verify OnChain Database
 			let mut pool = PoolInfo::<T>::get(asset_id).ok_or(Error::<T>::DbPoolNotExist)?;
-			// 
+			//	Accrue Pool Interest
+			Self::accrue_interest(&mut pool);
+			//	Transfer User Asset to the OnChain Account
+			T::MultiAsset::transfer(
+				user.clone(),
+				Self::fund_account_id(),
+				asset_id, 
+				amount 
+			).map_err(|_| Error::<T>::TransferIntoFailed)?;
+			//	Update the User Supplied 
+
 
 
 			Ok(())
@@ -153,36 +166,71 @@ use super::*;
 		}
 	}
 	impl<T: Config> Pallet<T> { 
+		///	'Into_Account' converts 'PALLET_ID' into a OnChain Account 
+		fn fund_account_id() -> T::AccountId { 
+			PALLET_ID.into_account()
+		}
 		///	'Accrue Interest' is the interest on an Asset that has accumulated since the principle investment
 		fn accrue_interest(pool: &mut Pools<T>) { 
 			log::info!("📢 Accruiing User Interst Rate");
 			let now = frame_system::Pallet::<T>::block_number();
 			
-			//	Verify if the pool interst has been updated
+			//	Verify if the pool interest has been updated
 			if pool.last_updated == now { 
 				return 					
 			}
 			//	Get the time difference from 'now' - 'last_updated'
 			let timespan = now - pool.last_updated;
 			//	Convert 'BlockNumber' into u32
-			let elapsed_time_in_u32 = TryInto::<u32>::try_into(timespan).map_err(|_| Error::<T>::UnableIntoU32);
+			let elapsed_time_in_u32 = TryInto::<u32>::try_into(timespan)
+				.map_err(|_| Error::<T>::UnableIntoU32)
+				.expect("Unable to convert Blocknumber into u32");
+
 			// Get the Supply Rate and then calculate the Supply Interest 
+			let supply_multiplier = Self::supply_rate_interest(pool) 
+				+ FixedU128::one() 
+				* FixedU128::saturating_from_integer(elapsed_time_in_u32); 
+			let debt_multiplier = Self::borrowing_rate_interest(pool)
+				+ FixedU128::one()
+				* FixedU128::saturating_from_integer(elapsed_time_in_u32);
 			
 		}  
-		fn supply_rate_internal(pool: &Pools<T>) -> FixedU128 { 
+		/// Supply Interest Rate 
+		fn supply_rate_interest(pool: &Pools<T>) -> FixedU128 { 
 			//	Check asset supply in the Pool
 			if pool.total_supply == T::Balance::zero() { 
-				return pool.initial_interest_rate
+				return FixedU128::zero();
 			}
+			///	Utilisation Rate = total debt/ total assets
 			let utilization_ratio = FixedU128::saturating_from_rational(pool.total_debt, pool.total_supply);
-			Self::debt_rate_interal(pool) * utilization_ratio
+			Self::borrowing_rate_interest(pool) * utilization_ratio
 		}
-		fn debt_rate_internal(pool: &Pools<T>) -> FixedU128 { 
+		///	Borrowing Interest Rate
+		fn borrowing_rate_interest(pool: &Pools<T>) -> FixedU128 { 
 			if pool.total_supply == T::Balance::zero() { 
 				return pool.initial_interest_rate
 			}
 			let utilization_ratio = FixedU128::saturating_from_rational(pool.total_debt, pool.total_supply);
 			pool.initial_interest_rate + pool.utilization_factor * utilization_ratio		
+		}
+		///	Runtime Public APIs
+		///	Supply Interest Rate of Pool
+		pub fn get_supply_interest_rate(asset_id: T::AssetID) -> FixedU128 { 
+			if let Some(asset_pool) = Self::get_pool(asset_id) { 
+				return Self::supply_rate_interest(&asset_pool)
+			} else { 
+				log::warn!("📢 Pool Does not Exist!");
+				return FixedU128::zero()
+			}
+		}
+		///	Borrowing Interest Rate of Pool
+		pub fn get_borrowing_interest_rate(asset_id: T::AssetID) -> FixedU128 { 
+			if let Some(asset_pool) = Self::get_pool(asset_id) { 
+				return Self::borrowing_rate_interest(&asset_pool)
+			} else { 
+				log::warn!("📢 Pool Does not Exist!");
+				return FixedU128::zero()
+			}
 		}
 	}
 }
