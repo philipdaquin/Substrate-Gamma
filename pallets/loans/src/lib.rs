@@ -224,7 +224,6 @@ pub mod pallet {
 		pub fn liquidate(origin: OriginFor<T>) -> DispatchResult { 
 			let user = ensure_signed(origin)?;
 
-
 			Ok(())
 		}
 	}
@@ -367,12 +366,17 @@ pub mod pallet {
 				UserAssetInfo::<T>::insert(asset_id, account_id, user_assets);
 			}
 		}
+		fn accrue_user_debt(pool: &mut Pools<T>, asset_id: T::AssetID, account_id: T::AccountId, amount: T::Balance) { 
+
+		} 
 		
 		
 		pub fn get_user_supply_with_interest(asset_id: T::AssetID, account_id: T::AccountId) -> T::Balance { 
+			//	Get the pool information
 			let mut pool = Self::get_pool(asset_id);
 			let now: T::BlockNumber = frame_system::Pallet::<T>::block_number();
 			let total_supply_index;
+			
 			if let Some(pool_info) = pool { 
 				let timespan = Self::block_to_int(now - pool_info.last_updated).unwrap();
 				
@@ -383,9 +387,26 @@ pub mod pallet {
 			} else { return T::Balance::zero() }
 			
 			if let Some(asset) = Self::get_user_supply(asset_id, account_id) { 
-				let pool_to_user_ratio = asset.
-			}
+				let pool_to_user_ratio = total_supply_index / asset.index;
+				pool_to_user_ratio.saturating_mul_int(asset.supplied_amount)
+			} else { T::Balance::zero() }
 		}
+
+		pub fn get_user_debt_with_interest(asset_id: T::AssetID, account_id: T::AccountId)  { 
+
+		}
+
+		fn get_user_balances(account_id: T::AccountId) -> (T::Balance, T::Balance, T::Balance) { 
+			let user_assets = Self::user_assets(account_id);
+
+			for asset in user_assets { 
+				let 
+			}
+		} 
+
+
+		///	
+
 		///	Runtime Public APIs
 		///	Supply Interest Rate of Pool
 		pub fn get_supply_interest_rate(asset_id: T::AssetID) -> FixedU128 { 
