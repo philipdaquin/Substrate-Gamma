@@ -1,4 +1,5 @@
 use super::*;
+use sp_std::vec::Vec;
 
 #[derive(PartialEq, RuntimeDebug, Encode, Decode, Clone, TypeInfo, MaxEncodedLen)]
 #[scale_info(skip_type_params(T))]

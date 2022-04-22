@@ -2,9 +2,9 @@
 /// Edit this file to define custom logic or remove it if it is not needed.
 /// Learn more about FRAME and the core library of Substrate FRAME pallets:
 /// <https://docs.substrate.io/v3/runtime/frame>
-pub use pallet::*;
 use common::{MultiAsset, Oracle};
 mod model;
+mod impl_function;
 pub use model::*;
 use codec::{Decode, Encode};
 use frame_support::{RuntimeDebug, PalletId};
@@ -36,7 +36,7 @@ pub mod pallet {
 		///	The units in which we record balances
 		type Balance: Member + Parameter + AtLeast32BitUnsigned + FixedPointOperand + Default + Copy + MaxEncodedLen + TypeInfo;
 		///	The arithmetic type of asset identifier
-		type AssetID: Parameter + Default + AtLeast32BitUnsigned + Copy + MaxEncodedLen + TypeInfo;
+		type AssetID: Parameter + Default + AtLeast32BitUnsigned + Copy + MaxEncodedLen + TypeInfo + HasCompact;
 		///	Price Oracle for assets
 		type Oracle: Oracle<Self::AssetID, FixedU128>;
 		///	MultiAsset Transfer
@@ -88,13 +88,23 @@ pub mod pallet {
 	//	The set of User's Supply 
 	#[pallet::storage]
 	#[pallet::getter(fn user_assets)]
-	pub type UserAssetsSet<T: Config> = StorageMap<
+	pub(super) type UserAssetSet<T: Config> = StorageMap<
 		_,
 		Blake2_128Concat,
 		T::AccountId, 
-		vec::Vec<T::AssetID>,
-		
+		Vec<T::AssetID>,
+		ValueQuery,
 	>; 
+	//	Set of User's debt
+	#[pallet::storage]
+	#[pallet::getter(fn user_debts)]
+	pub type UserDebtSet<T: Config> = StorageMap<
+		_,
+		Blake2_128Concat,
+		T::AccountId, 
+		Vec<T::AssetID>,
+		ValueQuery
+	>;
 
 	#[pallet::type_value]
 	pub fn LiquidationThreshold<T: Config>() -> FixedU128 { FixedU128::one()}
@@ -105,23 +115,31 @@ pub mod pallet {
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
 		/// Supplied Assets to a pool[asset_id]
-		Supplied { asset_id: T::AssetID, supplied_amount: T::Balance, account_id: T::AccountId },
+		Supplied { asset_id: T::AssetID, amount: T::Balance, account_id: T::AccountId },
 		///	Borrowed Assets from a pool[asset_id]
-		Borrowed { asset_id: T::AssetID, borrowed_amoutn: T::Balance, account_id: T::AccountId},
+		Borrowed { asset_id: T::AssetID, amount: T::Balance, account_id: T::AccountId},
 		///	Withdrawn Assets from a pool
 		Withdrawn { asset_id: T::AssetID, withdrawn_amount: T::Balance, account_id: T::AccountId },
 		///	Repaid assets to a pool
 		Repaid { asset_id: T::AssetID, repaid_amount: T::Balance, account_id: T::AccountId },
 		// Liquidated {}
+		Liquidated {
+			payment_asset: T::AssetID, 
+			seized_asset: T::AssetID, 
+			arbitrager: T::AccountId, 
+			target: T::AccountId,
+			price: T::Balance,
+			amount_seized: T::Balance
+		}
 	}
-
 	// Errors inform users that something went wrong.
 	#[pallet::error]
 	pub enum Error<T> {
 		///	OnChain Does not Exist
 		DbPoolNotExist,
 		UnableIntoU32,
-		TransferIntoFailed
+		TransferIntoFailed,
+		InsufficientSupply,
 	}
 
 	// Dispatchable functions allows users to interact with the pallet and invoke state changes.
@@ -147,9 +165,19 @@ pub mod pallet {
 			Self::update_user_supply_interest(account_id.clone(), asset_id, &pool, amount, true);
 
 			//	Update the Pool Supply interest 
-
-
-
+			Self::update_pool_supply(&mut pool, amount.clone(), true);
+			Self::deposit_event(Event::<T>::Supplied { 
+				asset_id, 
+				amount,
+				account_id 
+			});
+			//	Insert the assets to the User Records
+			let mut user_assets = Self::user_assets(account_id);
+			user_assets.push(asset_id.clone());
+			UserAssetSet::<T>::insert(account_id, user_assets);
+			//	Update the pool 
+			PoolInfo::<T>::insert(asset_id, pool);
+			
 			Ok(())
 		}
 		#[pallet::weight(10)]
@@ -160,8 +188,27 @@ pub mod pallet {
 			Ok(())
 		}
 		#[pallet::weight(10)]
-		pub fn withdraw_asset(origin: OriginFor<T>) -> DispatchResult { 
-			let user = ensure_signed(origin)?;
+		pub fn withdraw_asset(origin: OriginFor<T>, asset_id: T::AssetID, amount: T::Balance ) -> DispatchResult { 
+			let account_id = ensure_signed(origin)?;
+			//	Check the pool 
+			let mut pool = Self::get_pool(asset_id).ok_or(Error::<T>::DbPoolNotExist)?;
+			//	Ensure the amount is no greater than the actual witholding assets of the user
+			//	else set the amount to the left over supplied amount 
+			if let Some(user_assets) = UserAssetInfo::<T>::get(asset_id, account_id) { 
+				ensure!(user_assets.supplied_amount >= amount, Error::<T>::InsufficientSupply);
+				amount = user_assets.supplied_amount;
+			}
+			//	Accrue pool interest 
+			Self::accrue_interest(&mut pool);
+			//	Accrue the user's interest 
+			Self::accrue_user_supply(&mut pool, asset_id, account_id, amount);
+			
+			//	Check Users Collateral, ensure that it would not trigger liquidation process would not be triggered 
+
+			
+			//	Get current Price 
+			let price = T::Oracle::get_rate(asset_id);
+			
 
 
 			Ok(())
@@ -186,6 +233,10 @@ pub mod pallet {
 		fn fund_account_id() -> T::AccountId { 
 			PALLET_ID.into_account()
 		}
+		fn block_to_int(block: T::BlockNumber) -> Result<u32, DispatchError> { 
+			let into_int: u32 = TryInto::<u32>::try_into(block).ok().expect("");
+			Ok(into_int)
+		}
 		///	'Accrue Interest' is the interest on an Asset that has accumulated since the principle investment
 		fn accrue_interest(pool: &mut Pools<T>) { 
 			log::info!("📢 Accruing User Interst Rate");
@@ -198,9 +249,7 @@ pub mod pallet {
 			//	Get the time difference from 'now' - 'last_updated'
 			let timespan = now - pool.last_updated;
 			//	Convert 'BlockNumber' into u32
-			let elapsed_time_in_u32 = TryInto::<u32>::try_into(timespan)
-				.map_err(|_| Error::<T>::UnableIntoU32)
-				.expect("Unable to convert Blocknumber into u32");
+			let elapsed_time_in_u32 = Self::block_to_int(timespan).unwrap();
 
 			// Get the Supply Rate and then calculate the Supply Interest 
 			let supply_multiplier = Self::supply_rate_interest(pool) 
@@ -220,17 +269,18 @@ pub mod pallet {
 			log::info!("Accrued Interest Rate");
 		}  
 		/// Supply Interest Rate 
-		fn supply_rate_interest(pool: &Pools<T>) -> FixedU128 { 
+		pub(crate) fn supply_rate_interest(pool: &Pools<T>) -> FixedU128 { 
 			//	Check asset supply in the Pool
 			if pool.total_supply == T::Balance::zero() { 
 				return FixedU128::zero();
 			}
+			
 			//	Utilisation Rate = total debt/ total assets
 			let utilization_ratio = FixedU128::saturating_from_rational(pool.total_debt, pool.total_supply);
 			Self::borrowing_rate_interest(pool) * utilization_ratio
 		}
 		///	Borrowing Interest Rate
-		fn borrowing_rate_interest(pool: &Pools<T>) -> FixedU128 { 
+		pub(crate) fn borrowing_rate_interest(pool: &Pools<T>) -> FixedU128 { 
 			if pool.total_supply == T::Balance::zero() { 
 				return pool.initial_interest_rate
 			}
@@ -245,7 +295,7 @@ pub mod pallet {
 			amount: T::Balance, 
 			add_on: bool 
 		) { 
-			if let Some(mut user_assets) = Self::get_user_supply(asset_id, account_id) { 
+			if let Some(mut user_assets) = Self::get_user_supply(asset_id, account_id.clone()) { 
 				//	Calculate the ratio 'total_supply_index' is to 'user_assets.index'
 				let pool_to_user_ratio = pool.total_supply_index / user_assets.index;
 				//	Update the user's supplied amount: pool_to_user ratio * intitial user_assets ratio
@@ -263,14 +313,15 @@ pub mod pallet {
 				//	the supplied amount is not NULL
 				//	Update the new supplied_amount on chain 
 				if user_assets.supplied_amount != T::Balance::zero() { 
-					UserAssetInfo::<T>::insert(asset_id, account_id, user_assets);
+					UserAssetInfo::<T>::insert(asset_id, account_id.clone(), user_assets);
 					log::info!("Updating On-Chain User-to-Pool Ownership");
 				} else { 
-					UserAssetInfo::<T>::remove(asset_id, account_id);
-					//	Update the User Supply Set 
-					let mut assets = Self::user_assets(account_id.clone()).ok_or(Error::<T>::DbPoolNotExist).expect("");
-					assets.retain(|id| *id != asset_id);
-					UserAssetsSet::<T>::insert(account_id, assets);
+					UserAssetInfo::<T>::remove(asset_id, account_id.clone());
+					// Update the User Supply Set 
+					let mut assets = UserAssetSet::<T>::get(account_id);
+					//	Remove the asset equal to Zero 
+					assets.retain(|n| *n != asset_id);
+					UserAssetSet::<T>::insert(account_id, assets);
 				} 
 			} else if amount != T::Balance::zero() { 
 				log::info!("Updating User's Index");
@@ -287,9 +338,52 @@ pub mod pallet {
 				);
 			}		
 		}
-
-
-		/// -------------------------------------------------------------------------------///
+		///	Helper Functions to recalculate the supply and debt
+		fn update_pool_supply(pool: &mut Pools<T>, amount: T::Balance, add_on: bool) { 
+			log::info!("Recalculating pool supply of assets");
+			if add_on  { 
+				pool.total_supply += amount;
+			} else { 
+				pool.total_supply -= amount;			
+			}
+		}
+		fn update_pool_debt(pool: &mut Pools<T>, debt: T::Balance, add_on: bool) { 
+			log::info!("Recalculating pool supply of debt");
+			
+			if add_on { 
+				pool.total_debt += debt
+			} else { 
+				pool.total_debt -= debt
+			}
+		}
+		fn accrue_user_supply(pool: &mut Pools<T>, asset_id: T::AssetID, account_id: T::AccountId, amount: T::Balance) { 
+			if let Some(mut user_assets) = Self::get_user_supply(asset_id, account_id.clone()) { 
+				//	Calculate the ratio 'total_supply_index' is to 'user_assets.index'
+				let pool_to_user_ratio = pool.total_supply_index / user_assets.index;
+				//	Update the user's supplied amount: pool_to_user ratio * intitial user_assets ratio
+				user_assets.supplied_amount = pool_to_user_ratio.saturating_mul_int(user_assets.supplied_amount);
+				//	Update the User's Index to the Current Pool's supply Index 
+				user_assets.index = pool.total_supply_index;
+				UserAssetInfo::<T>::insert(asset_id, account_id, user_assets);
+			}
+		}
+		pub fn get_user_supply_with_interest(asset_id: T::AssetID, account_id: T::AccountId) -> T::Balance { 
+			let mut pool = Self::get_pool(asset_id);
+			let now: T::BlockNumber = frame_system::Pallet::<T>::block_number();
+			let total_supply_index;
+			if let Some(pool_info) = pool { 
+				let timespan = Self::block_to_int(now - pool_info.last_updated).unwrap();
+				
+				let supply_multiplier = FixedU128::one() 
+					+ Self::supply_rate_interest(&pool_info) 
+					* FixedU128::saturating_from_integer(timespan); 
+				total_supply_index = pool_info.total_supply_index * supply_multiplier;
+			} else { return T::Balance::zero() }
+			
+			if let Some(asset) = Self::get_user_supply(asset_id, account_id) { 
+				let pool_to_user_ratio = asset.
+			}
+		}
 		///	Runtime Public APIs
 		///	Supply Interest Rate of Pool
 		pub fn get_supply_interest_rate(asset_id: T::AssetID) -> FixedU128 { 
@@ -309,5 +403,6 @@ pub mod pallet {
 				return FixedU128::zero()
 			}
 		}
+		
 	}
 }
