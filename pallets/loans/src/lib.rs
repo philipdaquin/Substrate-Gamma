@@ -68,7 +68,7 @@ pub mod pallet {
 		//	[AssetId, AccountId, UserDebt]
 		Twox64Concat, T::AssetID, 
 		Blake2_128Concat, T::AccountId, 
-		Option<UserDebt<T::AssetID, T::Balance>>, 
+		UserDebt<T::AssetID, T::Balance>, 
 		OptionQuery
 	>;
 
@@ -370,19 +370,21 @@ pub mod pallet {
 
 		} 
 		
-		
-		pub fn get_user_supply_with_interest(asset_id: T::AssetID, account_id: T::AccountId) -> T::Balance { 
+		///	Calculate the value of assets with interest 
+		pub fn get_user_asset_with_interest(asset_id: T::AssetID, account_id: T::AccountId) -> T::Balance { 
 			//	Get the pool information
 			let mut pool = Self::get_pool(asset_id);
 			let now: T::BlockNumber = frame_system::Pallet::<T>::block_number();
 			let total_supply_index;
-			
+
 			if let Some(pool_info) = pool { 
 				let timespan = Self::block_to_int(now - pool_info.last_updated).unwrap();
 				
+				// 1 + SupplyInterestRate * (timespan of staking)
 				let supply_multiplier = FixedU128::one() 
 					+ Self::supply_rate_interest(&pool_info) 
 					* FixedU128::saturating_from_integer(timespan); 
+				
 				total_supply_index = pool_info.total_supply_index * supply_multiplier;
 			} else { return T::Balance::zero() }
 			
@@ -391,17 +393,54 @@ pub mod pallet {
 				pool_to_user_ratio.saturating_mul_int(asset.supplied_amount)
 			} else { T::Balance::zero() }
 		}
+		///	Calculate the value of debt with interest  
+		pub fn get_user_debt_with_interest(asset_id: T::AssetID, account_id: T::AccountId) -> T::Balance { 
+			let mut pool = Self::get_pool(asset_id);
+			let now: T::BlockNumber = frame_system::Pallet::<T>::block_number();
+			let total_debt_index: FixedU128;
+			if let Some(pool_info) = pool { 
+				let timespan = Self::block_to_int(now - pool_info.last_updated).unwrap();
+				let debt_multiplier = FixedU128::one()
+					+ Self::borrowing_rate_interest(&pool_info) 
+					* FixedU128::saturating_from_integer(timespan);
+				total_debt_index = pool_info.total_debt_index * debt_multiplier 
+			} else { return T::Balance::zero() }
 
-		pub fn get_user_debt_with_interest(asset_id: T::AssetID, account_id: T::AccountId)  { 
-
+			//	update the user debt
+			if let Some(debt) = Self::get_user_debt(asset_id, account_id.clone()) { 
+				let pool_to_user_ratio = total_debt_index / debt.index;
+				pool_to_user_ratio.saturating_mul_int(debt.debt_amount)
+			} else { T::Balance::zero() }
 		}
-
+		///	 Total SUpply Balance
+		///  Total Converted Supply Balance
+		///  Total Debt Balance 
 		fn get_user_balances(account_id: T::AccountId) -> (T::Balance, T::Balance, T::Balance) { 
 			let user_assets = Self::user_assets(account_id);
+			let (mut balance, mut converted_balance) = (T::Balance::zero(), T::Balance::zero());
 
-			for asset in user_assets { 
-				let 
+			//	Asset with interest 
+			for asset_id in user_assets { 
+				let amount_interest = Self::get_user_asset_with_interest(asset_id.clone(), account_id.clone());
+				let current_price: FixedU128 = T::Oracle::get_rate(asset_id);
+				// balance = current_price * accumulated_asset_interest	
+				balance += current_price.saturating_mul_int(amount_interest);
+
+				// convertedsupply = safefactor * current_price * asset_with_interest 
+				let safe_factor = Self::get_pool(asset_id).unwrap().safe_factor;
+				converted_balance += (current_price * safe_factor).saturating_mul_int(amount_interest);
 			}
+			
+			//	Amount borrowed with interest 
+			let mut debt_balance = T::Balance::zero();
+			let user_debt = Self::user_debts(account_id);
+			for debt in user_debt { 
+				let debt_amount = Self::get_user_debt_with_interest(debt, account_id.clone());
+				let price = T::Oracle::get_rate(debt);
+				debt_balance += price.saturating_mul_int(debt_amount)
+			}
+
+			todo!()
 		} 
 
 
