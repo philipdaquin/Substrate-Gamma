@@ -3690,6 +3690,7 @@ dependencies = [
 name = "node-template-runtime"
 version = "4.0.0-dev"
 dependencies = [
+ "assets",
  "frame-benchmarking",
  "frame-executive",
  "frame-support",
@@ -3698,6 +3699,7 @@ dependencies = [
  "frame-system-rpc-runtime-api",
  "frame-try-runtime",
  "hex-literal",
+ "loans",
  "pallet-aura",
  "pallet-balances",
  "pallet-grandpa",
@@ -3708,6 +3710,7 @@ dependencies = [
  "pallet-transaction-payment",
  "pallet-transaction-payment-rpc-runtime-api",
  "parity-scale-codec",
+ "price_oracle",
  "scale-info",
  "sp-api",
  "sp-block-builder",
@@ -4108,25 +4111,6 @@ dependencies = [
  "parity-scale-codec",
  "sp-api",
  "sp-runtime",
-]
-
-[[package]]
-name = "pallet_oracle"
-version = "4.0.0-dev"
-dependencies = [
- "assets",
- "frame-benchmarking",
- "frame-support",
- "frame-system",
- "lite-json",
- "log",
- "parity-scale-codec",
- "scale-info",
- "serde",
- "sp-core",
- "sp-io",
- "sp-runtime",
- "sp-std 4.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -4533,6 +4517,25 @@ name = "ppv-lite86"
 version = "0.2.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "eb9f9e6e233e5c4a35559a617bf40a4ec447db2e84c20b55a6f83167b7e57872"
+
+[[package]]
+name = "price_oracle"
+version = "4.0.0-dev"
+dependencies = [
+ "assets",
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
+ "lite-json",
+ "log",
+ "parity-scale-codec",
+ "scale-info",
+ "serde",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-std 4.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+]
 
 [[package]]
 name = "primitive-types"

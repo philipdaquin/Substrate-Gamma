@@ -11,11 +11,11 @@ pub struct Pool<AssetID, Balance, BlockNumber> {
     /// The underlying asset
     pub asset: AssetID,
     /// Total supply of the pool 
-    pub total_supply: Balance,
+    pub total_asset: Balance,
     /// Total debt of the pool
     pub total_debt: Balance,
     /// Effective index of current total supply
-    pub total_supply_index: FixedU128,
+    pub total_asset_index: FixedU128,
     /// Effective index of current total debt
     pub total_debt_index: FixedU128,
     /// The latest timestamp that the pool has accrued interest
