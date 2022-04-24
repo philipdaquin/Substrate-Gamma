@@ -12,7 +12,7 @@ pub struct Pool<AssetID, Balance, BlockNumber> {
     pub asset: AssetID,
     /// Total supply of the pool 
     pub total_asset: Balance,
-    /// Total debt of the pool
+    /// Total depoobt of the pool
     pub total_debt: Balance,
     /// Effective index of current total supply
     pub total_asset_index: FixedU128,

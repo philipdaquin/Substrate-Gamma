@@ -55,13 +55,7 @@ pub mod pallet {
 	// https://docs.substrate.io/v3/runtime/storage
 	#[pallet::storage]
 	#[pallet::getter(fn get_pool)]
-	pub type PoolInfo<T: Config> = StorageMap<
-		_, 
-		Twox64Concat, 
-		T::AssetID, 
-		Pools<T>,
-		OptionQuery,
-	>;
+	pub type PoolInfo<T: Config> = StorageMap<_, Twox64Concat, T::AssetID, Pools<T>,OptionQuery>;
 	
 	//	User debt
 	#[pallet::storage]
@@ -71,9 +65,7 @@ pub mod pallet {
 		//	[AssetId, AccountId, UserDebt]
 		Twox64Concat, T::AssetID, 
 		Blake2_128Concat, T::AccountId, 
-		UserDebt<T::AssetID, T::Balance>, 
-		OptionQuery
-	>;
+		UserDebt<T::AssetID, T::Balance>, OptionQuery>;
 
 	//	User asset 
 	#[pallet::storage]
@@ -108,8 +100,6 @@ pub mod pallet {
 		Vec<T::AssetID>,
 		ValueQuery
 	>;
-
-
 
 	// Pallets use events to inform users when important changes are made.
 	// https://docs.substrate.io/v3/runtime/events-and-errors
@@ -166,7 +156,7 @@ pub mod pallet {
 				amount 
 			).map_err(|_| Error::<T>::TransferIntoFailed)?;
 			//	Update the User asset Interest 
-			Self::update_user_assets(account_id.clone(), asset_id, &pool, amount, true);
+			Self::update_user_asset(account_id.clone(), asset_id, &pool, amount, true);
 
 			//	Update the Pool asset interest 
 			Self::update_pool_assets(&mut pool, amount.clone(), true);
@@ -185,8 +175,41 @@ pub mod pallet {
 			Ok(())
 		}
 		#[pallet::weight(10)]
-		pub fn borrow_asset(origin: OriginFor<T>) -> DispatchResult { 
-			let user = ensure_signed(origin)?;
+		pub fn borrow_asset(origin: OriginFor<T>, asset_id: T::AssetID, amount: T::Balance) -> DispatchResult { 
+			let account_id = ensure_signed(origin)?;	
+
+			let mut pool = Self::get_pool(asset_id).ok_or(Error::<T>::DbPoolNotExist)?;
+
+			//	Accrue Pool Interest 
+			Self::accrue_interest(&mut pool);
+			//	ensure total liquidity is greater than the asking amount 
+			ensure!(pool.total_asset - pool.total_debt > amount, Error::<T>::InsufficientLiquidity);
+			//	Accrue the user Interet first
+			Self::get_user_debt_with_interest(asset_id, account_id);
+			
+			//	Collaterals
+			let (_, current_collateral, needed_collateral) = Self::get_user_balances(account_id.clone());
+			let price = T::Oracle::get_rate(asset_id);
+			
+			let needed_collateral = needed_collateral + price.saturating_mul_int(amount);
+			//	Ensure the asset/w interest has not reached pass liquidation threshold 
+			ensure!(
+				T::LiquidationThreshold::get().saturating_mul_int(needed_collateral) <= current_collateral,
+				Error::<T>::ReachedLiquidationThreshold
+			);
+
+			//	Transfer assets to user  
+			T::MultiAsset::transfer(
+				Self::fund_account_id(),
+				account_id.clone(),
+				asset_id.clone(), 
+				amount
+			).map_err(|_| Error::<T>::TransferIntoFailed)?;
+
+			//	Update the new User Debt 
+
+			//	Update the current pool debt 
+
 
 
 			Ok(())
@@ -206,10 +229,11 @@ pub mod pallet {
 			//	Accrue pool interest 
 			Self::accrue_interest(&mut pool);
 			//	Accrue the user's interest 
-			Self::accrue_user_asset(&mut pool, asset_id, account_id, amount);
+			Self::accrue_user_asset(&mut pool, asset_id, account_id.clone());
 			
 			//	Check Users Collateral, ensure that it would not trigger liquidation process would not be triggered 
-			let	(balance, asset_with_interest, debt_balance) = Self::get_user_balances(account_id);			
+			let	(balance, 
+				asset_with_interest, debt_balance) = Self::get_user_balances(account_id);			
 			// Safe factor 
 			let safe_factor = pool.safe_factor.clone();
 			//	Get current Price 
@@ -236,14 +260,13 @@ pub mod pallet {
 			Self::deposit_event(Event::<T>::Withdrawn { asset_id, withdrawn_amount: amount.clone(), account_id });
 
 			//	Update the user records onchain 
-			Self::update_user_assets(account_id.clone(), asset_id, &pool, amount, false);
+			Self::update_user_asset(account_id.clone(), asset_id, &pool, amount, false);
 
 			//	Update the pool assets 
 			Self::update_pool_assets(&mut pool, amount, false);
 
 			//	Update the onChaiin Pool database 
 			PoolInfo::<T>::insert(asset_id, pool);
-
 			Ok(())
 		}
 		#[pallet::weight(10)]
@@ -308,6 +331,7 @@ pub mod pallet {
 			}
 			
 			//	Utilisation Rate = total debt/ total assets
+			//	The utilisation rate represents the percentage of borrows in the total money market 
 			let utilization_ratio = FixedU128::saturating_from_rational(pool.total_debt, pool.total_asset);
 			Self::borrowing_rate_interest(pool) * utilization_ratio
 		}
@@ -320,7 +344,7 @@ pub mod pallet {
 			pool.initial_interest_rate + pool.utilization_factor * utilization_ratio		
 		}
 
-		fn update_user_assets(
+		fn update_user_asset(
 			account_id: T::AccountId, 
 			asset_id: T::AssetID, 
 			pool: &Pools<T>,
@@ -348,6 +372,8 @@ pub mod pallet {
 					UserAssetInfo::<T>::insert(asset_id, account_id.clone(), user_assets);
 					log::info!("Updating On-Chain User-to-Pool Ownership");
 				} else { 
+					log::warn!("📭 User Has Zero Asset, Updating OnChain DB...");
+
 					UserAssetInfo::<T>::remove(asset_id, account_id.clone());
 					// Update the User asset Set 
 					let mut assets = UserAssetSet::<T>::get(account_id);
@@ -370,6 +396,50 @@ pub mod pallet {
 				);
 			}		
 		}
+		fn update_user_debt(
+			account_id: T::AccountId, 
+			asset_id: T::AssetID,
+			pool: &Pools<T>,
+			amount: T::Balance, 
+			add_on: bool
+		) { 
+			if let Some(mut user_debt) = Self::get_user_debt(asset_id, account_id.clone()) { 
+				let pool_to_user_ratio = pool.total_debt_index / user_debt.index;
+				user_debt.debt_amount = pool_to_user_ratio.saturating_mul_int(user_debt.debt_amount);
+
+				user_debt.index = pool.total_debt_index;
+
+				if add_on { 
+					user_debt.debt_amount += amount 
+				} else { 
+					user_debt.debt_amount -= amount
+				}
+
+				if user_debt.debt_amount != T::Balance::zero() { 
+					UserDebtInfo::<T>::insert(asset_id, account_id.clone(), user_debt);
+				} else { 
+					log::warn!("📭 User Has Zero Debt, Updating OnChain DB...");
+					//	If the user debt IS NULL
+					UserDebtInfo::<T>::remove(asset_id, account_id);
+					//	Update the user_set debt 
+					let mut debt = Self::user_debts(account_id);
+					debt.retain(|x| *x != asset_id );
+					UserDebtSet::<T>::insert(account_id, debt);
+				}
+			} else if amount != T::Balance::zero() { 
+				//	Update the user debt index 
+				UserDebtInfo::<T>::insert(
+					asset_id, 
+					account_id,
+					UserDebt::<T::AssetID, T::Balance> { 
+						asset_id, 
+						debt_amount: amount,
+						index: pool.total_debt_index
+					}
+				);
+			}
+		}
+
 		///	Helper Functions to recalculate the asset and debt
 		fn update_pool_assets(pool: &mut Pools<T>, amount: T::Balance, add_on: bool) { 
 			log::info!("Recalculating pool asset of assets");
@@ -388,7 +458,8 @@ pub mod pallet {
 				pool.total_debt -= debt
 			}
 		}
-		fn accrue_user_asset(pool: &mut Pools<T>, asset_id: T::AssetID, account_id: T::AccountId, amount: T::Balance) { 
+		///	Accrue users assets with Interest 
+		fn accrue_user_asset(pool: &mut Pools<T>, asset_id: T::AssetID, account_id: T::AccountId) { 
 			if let Some(mut user_assets) = Self::get_user_asset(asset_id, account_id.clone()) { 
 				//	Calculate the ratio 'total_asset_index' is to 'user_assets.index'
 				let pool_to_user_ratio = pool.total_asset_index / user_assets.index;
@@ -399,8 +470,16 @@ pub mod pallet {
 				UserAssetInfo::<T>::insert(asset_id, account_id, user_assets);
 			}
 		}
-		fn accrue_user_debt(pool: &mut Pools<T>, asset_id: T::AssetID, account_id: T::AccountId, amount: T::Balance) { 
-
+		///	Accrue user debt with Interest 
+		fn accrue_user_debt(pool: &mut Pools<T>, asset_id: T::AssetID, account_id: T::AccountId) { 
+			if let Some(mut user_debt) = Self::get_user_debt(asset_id, account_id) { 
+				//	
+				let pool_to_user_ratio = pool.total_debt_index / user_debt.index;
+				
+				user_debt.debt_amount = pool_to_user_ratio.saturating_mul_int(user_debt.debt_amount);
+				user_debt.index = pool.total_debt_index;
+				
+			}
 		} 
 		
 		///	Calculate the value of assets with interest 
@@ -447,16 +526,17 @@ pub mod pallet {
 		}
 
 		///	 Total asset Balance
-		///  Total Converted asset Balance
-		///  Total Debt Balance 
+		///  Total convereted supply balance 
+		///  Total total debt balance
 		fn get_user_balances(account_id: T::AccountId) -> (T::Balance, T::Balance, T::Balance) { 
 			let user_assets = Self::user_assets(account_id);
 			let (mut balance, mut converted_balance) = (T::Balance::zero(), T::Balance::zero());
 
-			//	Asset with interest 
+			//	Assets with interest 
 			for asset_id in user_assets { 
 				let amount_interest = Self::get_user_asset_with_interest(asset_id.clone(), account_id.clone());
 				let current_price: FixedU128 = T::Oracle::get_rate(asset_id);
+
 				// balance = current_price * accumulated_asset_interest	
 				balance += current_price.saturating_mul_int(amount_interest);
 
@@ -465,7 +545,7 @@ pub mod pallet {
 				converted_balance += (current_price * safe_factor).saturating_mul_int(amount_interest);
 			}
 			
-			//	Amount borrowed with interest 
+			//	The amount needed for collateral 
 			let mut debt_balance = T::Balance::zero();
 			let user_debt = Self::user_debts(account_id);
 			for debt in user_debt { 
