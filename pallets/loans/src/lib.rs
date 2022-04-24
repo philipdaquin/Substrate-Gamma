@@ -136,7 +136,9 @@ use super::*;
 		ReachedLiquidationThreshold,
 		InsufficientLiquidity,
 		UserHasNoDebt,
-		UserPayingZeroAmount
+		UserPayingZeroAmount,
+		AssetCantBeCollateral,
+		AboveLiquidationThreshold
 	}
 
 	// Dispatchable functions allows users to interact with the pallet and invoke state changes.
@@ -145,7 +147,7 @@ use super::*;
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
 		#[pallet::weight(10)]
-		pub fn asset_asset(origin: OriginFor<T>, asset_id: T::AssetID, amount: T::Balance) -> DispatchResult { 
+		pub fn supply_asset(origin: OriginFor<T>, asset_id: T::AssetID, amount: T::Balance) -> DispatchResult { 
 			let account_id = ensure_signed(origin)?;
 			//	Verify OnChain Database
 			let mut pool = PoolInfo::<T>::get(asset_id).ok_or(Error::<T>::DbPoolNotExist)?;
@@ -334,11 +336,95 @@ use super::*;
 		pub fn liquidate(
 			origin: OriginFor<T>, 
 			source: <T::Lookup as StaticLookup>::Source, 
-			payment_id: T::AssetID,
+			payment_asset_id: T::AssetID,
 			target_asset_id: T::AssetID, 
-			amount: T::Balance
+			mut payment_amount: T::Balance
 		) -> DispatchResult { 
-			let account = ensure_signed(origin)?;
+			let account_id = ensure_signed(origin)?;
+
+			let target_id = T::Lookup::lookup(source)?;
+			//	Check if Assets for payment is available 
+			let mut payment_pool = Self::get_pool(payment_asset_id).ok_or(Error::<T>::DbPoolNotExist)?;
+			//	Check if the targeted Asset to be paid -- pool exists
+			let mut target_pool = Self::get_pool(target_asset_id).ok_or(Error::<T>::DbPoolNotExist)?;
+			ensure!(target_pool.is_collateral, Error::<T>::AssetCantBeCollateral);
+
+			//	Accrue both pools 
+			Self::accrue_interest(&mut payment_pool);
+			Self::accrue_interest(&mut target_pool);
+
+			//	PaymentAssets: Accrue the user's asset interest 
+			Self::accrue_user_asset(&mut payment_pool, payment_asset_id, target_id.clone());
+			//	BorrowedAssets: Accrue the user's debt interest 
+			Self::accrue_user_debt(&mut target_pool, target_asset_id, target_id.clone());
+			// Check if the collateral is sufficient 
+			
+			//	Check liquidation threshold 
+			let (_, total_asset, total_borrowed) = Self::get_user_balances(target_id.clone());
+			let safe_factor = T::LiquidationThreshold::get(); 
+			// Liquidation occurs when total_assets > total_borrowed assts 
+			ensure!(safe_factor.saturating_mul_int(total_borrowed) > total_asset, Error::<T>::AboveLiquidationThreshold );
+			
+			let target_assets = Self::get_user_asset(target_asset_id, target_id.clone())
+				.ok_or(Error::<T>::InsufficientLiquidity)?;
+			//	Close_factor * Supplied_assets of user to the Pool
+			let arbitrage_limit = target_pool.close_factor.saturating_mul_int(target_assets.supplied_amount);
+
+			//	Get Prices for both assets 		
+			let (payment_price, target_asset_price) = (
+				T::Oracle::get_rate(payment_asset_id), 
+				T::Oracle::get_rate(target_asset_id));
+			let discounted_price = payment_price * target_pool.discount_factor;
+			let payment_limit = (target_asset_price/ discounted_price).saturating_mul_int(arbitrage_limit);
+			let mut target_user_debt = Self::get_user_debt(target_asset_id, target_id.clone())
+				.ok_or(Error::<T>::InsufficientLiquidity)?;
+			
+			//	Reset the amount that will be paid 
+			if payment_amount > payment_limit { 
+				payment_amount = payment_limit;
+			}
+			if payment_amount > target_user_debt.debt_amount { 
+				payment_amount = target_user_debt.debt_amount;
+			}
+
+			let target_amount = (
+				payment_price / target_asset_price / target_pool.discount_factor
+			).saturating_mul_int(payment_amount);
+
+
+			//	Transfer payments from Arbitrager 
+			T::MultiAsset::transfer(
+				account_id.clone(), 
+				Self::fund_account_id(),
+				payment_asset_id,
+				payment_amount
+			).map_err(|_| Error::<T>::TransferIntoFailed)?;
+
+			//	Transfer collateral to arbitrager 
+			T::MultiAsset::transfer(
+				Self::fund_account_id(),
+				account_id.clone(),
+				target_asset_id,
+				target_amount
+			).map_err(|_| Error::<T>::TransferIntoFailed)?;
+			//	Update the targeted_users assets
+			Self::update_user_asset(
+				target_id, 
+				target_asset_id, 
+				&mut target_pool, target_amount, false);
+			//	Update the targets_users debt (How much does the target user owe now)
+			Self::update_user_debt(
+				account_id, 
+				payment_asset_id, 
+				&mut payment_pool, 
+				payment_amount,
+				false
+			);
+			//  Update the target_pool
+
+			//	Update the payment_pool 
+			PoolInfo::<T>::insert(payment_asset_id, payment_pool);
+			PoolInfo::<T>::insert(target_asset_id, target_pool);
 
 			Ok(())
 		}
@@ -538,7 +624,7 @@ use super::*;
 				
 				user_debt.debt_amount = pool_to_user_ratio.saturating_mul_int(user_debt.debt_amount);
 				user_debt.index = pool.total_debt_index;
-				
+				UserDebtInfo::<T>::insert(asset_id, account_id, user_debt);
 			}
 		} 
 		
