@@ -22,7 +22,9 @@ const PALLET_ID: PalletId = PalletId(*b"Lending2");
 #[frame_support::pallet]
 pub mod pallet {
 
-	use super::*;
+	use sp_runtime::traits::StaticLookup;
+
+use super::*;
 
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
@@ -79,7 +81,6 @@ pub mod pallet {
 		OptionQuery
 	>;
 
-
 	//	The set of User's asset 
 	#[pallet::storage]
 	#[pallet::getter(fn user_assets)]
@@ -133,7 +134,9 @@ pub mod pallet {
 		TransferIntoFailed,
 		Insufficientasset,
 		ReachedLiquidationThreshold,
-		InsufficientLiquidity 
+		InsufficientLiquidity,
+		UserHasNoDebt,
+		UserPayingZeroAmount
 	}
 
 	// Dispatchable functions allows users to interact with the pallet and invoke state changes.
@@ -206,11 +209,28 @@ pub mod pallet {
 				amount
 			).map_err(|_| Error::<T>::TransferIntoFailed)?;
 
-			//	Update the new User Debt 
+			//	Update the current user debt: DAdd new debt_amount to the user on chain 
+			Self::update_user_debt(account_id, asset_id, &pool, amount, true);
+			//	Update the current pool debt: Add new borrowed amount 
+			Self::update_pool_debt(&mut pool, amount, true);
+			//	Emit borrowed event 
+			Self::deposit_event(Event::<T>::Borrowed { 
+				asset_id, 
+				amount, 
+				account_id, 
+			});
 
-			//	Update the current pool debt 
-
-
+			//	Update the user's asset debt 
+			let mut assets = Self::user_debts(account_id);
+			//	Add the debt set to the user's account if it doesnt exist yet
+			if !assets.iter().any(|target| *target == asset_id ) { 
+				assets.push(asset_id);
+				//	Update DB
+				UserDebtSet::<T>::insert(account_id, assets);
+			} 
+			log::info!("🚀 Updated Pool Metrics");
+			//	Register new pool state to the onchain db 
+			PoolInfo::<T>::insert(asset_id, pool);
 
 			Ok(())
 		}
@@ -270,15 +290,55 @@ pub mod pallet {
 			Ok(())
 		}
 		#[pallet::weight(10)]
-		pub fn repay_asset(origin: OriginFor<T>) -> DispatchResult { 
-			let user = ensure_signed(origin)?;
+		pub fn repay_asset(origin: OriginFor<T>, asset_id: T::AssetID, amount: T::Balance) -> DispatchResult { 
+			let account_id = ensure_signed(origin)?;
+			let mut pool = Self::get_pool(asset_id).ok_or(Error::<T>::DbPoolNotExist)?;
+			//	Accrue the pool interest 
+			Self::accrue_interest(&mut pool);
+			//  Accrue the user's interest
+			Self::accrue_user_debt(&mut pool, asset_id, account_id.clone());
+			let mut amount = amount; 
+			//	Check if the user owes anything 
+			if let Some(user_debt) = Self::get_user_debt(asset_id, account_id) { 
+				//	To repay, the repayment must be greater than the debt amount 
+				ensure!(user_debt.debt_amount != T::Balance::zero(), Error::<T>::UserHasNoDebt);
+				ensure!(amount != T::Balance::zero(), Error::<T>::UserPayingZeroAmount);
+				//	Check the amount is enough to pay 
+				if amount >= user_debt.debt_amount { 
+					amount = user_debt.debt_amount;
+				}
+			}
+			//	Trasnfer the users assets to the pools account 
+			T::MultiAsset::transfer(
+				account_id,
+				Self::fund_account_id(),
+				asset_id, 
+				amount
+			).map_err(|_| Error::<T>::TransferIntoFailed)?;
+			//	Update the users debt 
+			Self::update_user_debt(account_id, asset_id, &pool, amount, false);
+			//	Update the pool's debt 
+			Self::update_pool_debt(&mut pool, amount, false);
+			//	Deposit event 
+			Self::deposit_event(Event::<T>::Repaid { 
+				asset_id, 
+				repaid_amount: amount,
+				account_id
+			});
 
-
+			//	Update on chain database 
+			PoolInfo::<T>::insert(asset_id, pool);
 			Ok(())
 		}
 		#[pallet::weight(10)]
-		pub fn liquidate(origin: OriginFor<T>) -> DispatchResult { 
-			let user = ensure_signed(origin)?;
+		pub fn liquidate(
+			origin: OriginFor<T>, 
+			source: <T::Lookup as StaticLookup>::Source, 
+			payment_id: T::AssetID,
+			target_asset_id: T::AssetID, 
+			amount: T::Balance
+		) -> DispatchResult { 
+			let account = ensure_signed(origin)?;
 
 			Ok(())
 		}
