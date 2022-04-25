@@ -17,15 +17,11 @@ use scale_info::TypeInfo;
 use sp_runtime::FixedPointNumber;
 use sp_std::{prelude::*, vec, convert::TryInto};
 
-const PALLET_ID: PalletId = PalletId(*b"Lending2");
-
 #[frame_support::pallet]
 pub mod pallet {
 
 	use sp_runtime::traits::StaticLookup;
-
-use super::*;
-
+	use super::*;
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
 	pub struct Pallet<T>(_);
@@ -45,8 +41,11 @@ use super::*;
 		type MultiAsset: MultiAsset<Self::AccountId, Self::AssetID, Self::Balance>;
 		/// Liquidation Threshoold
 		type LiquidationThreshold: Get<FixedU128>;
+
+		#[pallet::constant]
+		type Palletid: Get<PalletId>;
 	}
-	
+	type AssetSet<T> = sp_std::vec::Vec<AssetIdOf<T>>;	
 	type AssetIdOf<T> = <T as Config>::AssetID;
 	type BalanceOf<T> = <T as Config>::Balance;
 	pub type Pools<T> = Pool<AssetIdOf<T>, BalanceOf<T>, <T as frame_system::Config>::BlockNumber>;
@@ -98,7 +97,7 @@ use super::*;
 		_,
 		Blake2_128Concat,
 		T::AccountId, 
-		Vec<T::AssetID>,
+		AssetSet<T>,
 		ValueQuery
 	>;
 
@@ -430,7 +429,7 @@ use super::*;
 	impl<T: Config> Pallet<T> { 
 		///	'Into_Account' converts 'PALLET_ID' into a OnChain Account 
 		fn fund_account_id() -> T::AccountId { 
-			PALLET_ID.into_account()
+			T::Palletid::get().into_account()
 		}
 		fn block_to_int(block: T::BlockNumber) -> Result<u32, DispatchError> { 
 			let into_int: u32 = TryInto::<u32>::try_into(block).ok().expect("");

@@ -2,10 +2,12 @@
 members = [
     "node",
     # "pallets/assets",
-    "pallets/loans",
+    # "pallets/loans",
     # "pallets/price_oracle",
-    # "runtime",
     # "pallets/common"
+    "pallets/amm",
+    # "runtime",
+
 ]
 [profile.release]
 panic = "unwind"

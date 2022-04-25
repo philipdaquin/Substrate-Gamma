@@ -5,7 +5,7 @@
 /// <https://docs.substrate.io/v3/runtime/frame>
 pub use pallet::*;
 use sp_std::prelude::*;
-use sp_runtime::{traits::{AtLeast32BitUnsigned, One, Zero}, ArithmeticError, FixedU128 };
+use sp_runtime::{traits::{AtLeast32BitUnsigned, One, Zero}, ArithmeticError, FixedU128, FixedPointOperand};
 use codec::HasCompact;
 // #[cfg(test)]
 // mod mock;
@@ -30,10 +30,9 @@ pub mod pallet {
 		/// Because this pallet emits events, it depends on the runtime's definition of an event.
 		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
 		///	The units in which we record balances
-		type Balance: Member + Parameter + AtLeast32BitUnsigned + MaxEncodedLen + Default + Copy;
+		type Balance: Member + Parameter + AtLeast32BitUnsigned + FixedPointOperand + Default + Copy + MaxEncodedLen + TypeInfo;
 		///	The arithmetic type of asset identifier
-		type AssetID: Member + Parameter + Default + TypeInfo + AtLeast32BitUnsigned + HasCompact 
-			+ MaxEncodedLen + Copy;
+		type AssetID: Parameter + Default + AtLeast32BitUnsigned + Copy + MaxEncodedLen + TypeInfo + HasCompact;
 		//	The origin which may forcibly create or destroy an asset or otherwise alter 
 		//	priviledged attributes
 		type ForceOrigin: EnsureOrigin<Self::Origin>;
