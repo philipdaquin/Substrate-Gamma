@@ -88,7 +88,7 @@ use super::*;
 		_,
 		Blake2_128Concat,
 		T::AccountId, 
-		Vec<T::AssetID>,
+		vec::Vec<T::AssetID>,
 		ValueQuery,
 	>; 
 	//	Set of User's debt
@@ -420,8 +420,6 @@ use super::*;
 				payment_amount,
 				false
 			);
-			//  Update the target_pool
-
 			//	Update the payment_pool 
 			PoolInfo::<T>::insert(payment_asset_id, payment_pool);
 			PoolInfo::<T>::insert(target_asset_id, target_pool);
