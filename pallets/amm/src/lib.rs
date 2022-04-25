@@ -53,7 +53,13 @@ use super::*;
 		///	Asset swap event
 		///	[Account, Asset A, Liquidity A, 
 		/// Asset B, Liquidity B]
-		SwappedAssets {} 
+		SwappedAssets { 
+			account_id: T::AccountId,
+			asset_a: T::AssetID, 
+			amount_a: T::Balance, 
+			asset_b: T::AssetID, 
+			amount_b: T::Balance
+		} 
 
 	}
 
