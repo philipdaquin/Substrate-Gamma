@@ -53,13 +53,11 @@ use super::*;
 		///	Asset swap event
 		///	[Account, Asset A, Liquidity A, 
 		/// Asset B, Liquidity B]
-		SwappedAssets { 
-			account_id: T::AccountId,
-			asset_a: T::AssetID, 
-			amount_a: T::Balance, 
+		SwappedAssets { account_id: T::AccountId, asset_a: T::AssetID, amount_a: T::Balance,  
 			asset_b: T::AssetID, 
 			amount_b: T::Balance
-		} 
+		},
+		ReserveChanged { asset_id: T::AssetID, amount: T::Balance }
 
 	}
 
@@ -77,10 +75,19 @@ use super::*;
 	// Dispatchable functions must be annotated with a weight and must return a DispatchResult.
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
-		
+		#[pallet::weight(1)]
+		#[frame_support::transactional]
+		pub fn add_liquidity(
+			origin: OriginFor<T>, 
+			pair: (T::AssetID, T::AssetID),
+			target_amount: (T::Balance, T::Balance),
+			minimum_amount: (T::Balance, T::Balance)
+		) -> DispatchResult {
+
+			Ok(())
+		}
 	}
 	///	Helper Functions
 	impl<T: Config> Pallet<T> { 
-
 	}
 }

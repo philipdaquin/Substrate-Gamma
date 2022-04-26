@@ -63,6 +63,11 @@ pub mod pallet {
 	pub type Price<T: Config> = StorageMap<
 		_, Twox64Concat, T::AssetID, FixedU128, ValueQuery>;
 
+	///	The default asset for this project 
+	#[pallet::storage]
+	#[pallet::getter(fn get_asset_id)]
+	pub type DefaultAssetID<T: Config> = StorageValue<_, T::AssetID>;
+
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
