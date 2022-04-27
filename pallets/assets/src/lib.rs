@@ -11,7 +11,7 @@ use codec::HasCompact;
 // mod mock;
 // #[cfg(test)]
 // mod tests;
-
+mod api;
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking;
 
@@ -167,7 +167,7 @@ pub mod pallet {
 			NextAssetId::<T>::mutate(|id| *id += One::one());
 			Ok(id)
 		}
-		fn transfer_asset(
+		pub fn transfer_asset(
 			from: T::AccountId, 
 			to: T::AccountId, 
 			value: T::Balance,

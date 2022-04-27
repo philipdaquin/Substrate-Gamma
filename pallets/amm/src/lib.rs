@@ -13,8 +13,10 @@ use assets::{};
 
 #[frame_support::pallet]
 pub mod pallet {
-	use sp_runtime::traits::{AtLeast32Bit, AtLeast32BitUnsigned};
-
+	use frame_support::traits::Randomness;
+use frame_system::WeightInfo;
+use sp_runtime::traits::{AtLeast32Bit, AtLeast32BitUnsigned, AccountIdConversion, Zero};
+use frame_support::PalletId;
 use super::*;
 	/// Configure the pallet by specifying the parameters and types on which it depends.
 	#[pallet::config]
@@ -23,6 +25,13 @@ use super::*;
 		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
 		/// Defines the fees taken out of each trade and sent back to the AMM pool
 		type LpFee: Parameter + AtLeast32BitUnsigned + Default + Copy;
+		///	Weight information for extrinsics 
+		type SwapsWeight: WeightInfo;
+		///	Pallet Id for this Pallet
+		#[pallet::constant]
+		type PalletId: Get<PalletId>;
+
+
 
 	}
 	type AssetIdOf<T> = <T as assets::Config>::AssetID;
@@ -31,13 +40,21 @@ use super::*;
 	#[pallet::generate_store(pub(super) trait Store)]
 	pub struct Pallet<T>(_);
 
-	// The pallet's runtime storage items.
-	// https://docs.substrate.io/v3/runtime/storage
+	///	Pool index storage
 	#[pallet::storage]
-	#[pallet::getter(fn something)]
-	// Learn more about declaring storage items:
-	// https://docs.substrate.io/v3/runtime/storage#declaring-storage-items
-	pub type Something<T> = StorageValue<_, u32>;
+	#[pallet::getter(fn pool_id)]
+	pub type PoolIndex<T> = StorageValue<_, u32, ValueQuery>;
+
+	///	Pool-to-Asset Storage 
+	#[pallet::storage]
+	#[pallet::getter(fn get_pool_id)]
+	pub type PoolAccount<T: Config> = StorageMap<_, Blake2_128Concat, T::AssetID, T::AccountId, OptionQuery>;
+
+	///	Liquidy of each pair pool 
+	#[pallet::storage]
+	#[pallet::getter(fn get_liquidity)]
+	pub type PoolLiquidity<T: Config> = StorageMap<_, Blake2_128Concat, T::AssetID, T::Balance>;
+
 
 	// Pallets use events to inform users when important changes are made.
 	// https://docs.substrate.io/v3/runtime/events-and-errors
@@ -68,6 +85,7 @@ use super::*;
 		NoneValue,
 		/// Errors should have helpful documentation associated with them.
 		StorageOverflow,
+		PoolIdError,
 	}
 
 	// Dispatchable functions allows users to interact with the pallet and invoke state changes.
@@ -75,6 +93,11 @@ use super::*;
 	// Dispatchable functions must be annotated with a weight and must return a DispatchResult.
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
+
+		///	origin: AccountId 
+		///	pair: [base, quote]
+		/// target_amount: [base, quote]
+		/// minimum_amount: [base, quote]
 		#[pallet::weight(1)]
 		#[frame_support::transactional]
 		pub fn add_liquidity(
@@ -83,11 +106,40 @@ use super::*;
 			target_amount: (T::Balance, T::Balance),
 			minimum_amount: (T::Balance, T::Balance)
 		) -> DispatchResult {
+			let account_id = ensure_signed(origin)?;
+			let (base, quote) = pair;
+			let (base_amount, quoted_amount) = target_amount;
+			let (min_base, min_quote) = minimum_amount;
+			
+			let pool_id = Self::gen_new_exchange();
+			
+			let total_liquidity = Self::get_liquidity(base);
+			
+			if let Some(liquidity) = total_liquidity { 
+				if liquidity.is_zero() { 
+					assets::Pallet::<T>::transfer(account_id.clone(), from, value, asset_id)
+				}
+			}
+
 
 			Ok(())
 		}
 	}
 	///	Helper Functions
-	impl<T: Config> Pallet<T> { 
+	impl<T: Config> Pallet<T> {
+		///	Generate a new exchange address
+		/// Create a new exchange account 
+		fn gen_new_exchange() -> T::AccountId { 
+			let new_id = Self::next_pool_id().expect("Unable To Generate New Pool ID");
+			T::PalletId::get().into_sub_account(new_id)
+		}
+		fn next_pool_id() -> Result<u32, DispatchError> { 
+			PoolIndex::<T>::try_mutate(|id| -> Result<u32, DispatchError> { 
+				let current_id = *id;
+				*id = id.checked_add(1).ok_or(sp_runtime::ArithmeticError::Overflow)?;
+				Ok(current_id)
+			})
+		}
+
 	}
 }

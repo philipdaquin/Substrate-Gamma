@@ -17,6 +17,7 @@ use scale_info::TypeInfo;
 use sp_runtime::FixedPointNumber;
 use sp_std::{prelude::*, vec, convert::TryInto};
 
+
 #[frame_support::pallet]
 pub mod pallet {
 
