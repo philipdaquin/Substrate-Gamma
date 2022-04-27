@@ -7,7 +7,7 @@ pub use pallet::*;
 use frame_support::pallet_prelude::*;
 use frame_system::pallet_prelude::*;
 mod traits;
-
+use common::{MultiAsset};
 
 use assets::{};
 
@@ -27,13 +27,17 @@ use super::*;
 		type LpFee: Parameter + AtLeast32BitUnsigned + Default + Copy;
 		///	Weight information for extrinsics 
 		type SwapsWeight: WeightInfo;
+		///	MultiAsset Trasnsfer
+		type MultiAsset: MultiAsset<Self::AccountId, Self::AssetID, Self::Balance>;
 		///	Pallet Id for this Pallet
 		#[pallet::constant]
 		type PalletId: Get<PalletId>;
-
-
+		///	Standard Protocol Fee
+		#[pallet::constant]
+		type ProtocolFee: Get<Ratio>;
 
 	}
+	type Ratio = Parameter + AtLeast32BitUnsigned + Default + Copy;
 	type AssetIdOf<T> = <T as assets::Config>::AssetID;
 	type BalanceOf<T> = <T as assets::Config>::Balance;
 	#[pallet::pallet]
@@ -48,13 +52,26 @@ use super::*;
 	///	Pool-to-Asset Storage 
 	#[pallet::storage]
 	#[pallet::getter(fn get_pool_id)]
-	pub type PoolAccount<T: Config> = StorageMap<_, Blake2_128Concat, T::AssetID, T::AccountId, OptionQuery>;
+	pub type PoolAccount<T: Config> = StorageMap<
+		_, Blake2_128Concat, 
+		T::AssetID, 
+		T::AccountId, 
+		OptionQuery
+	>;
 
 	///	Liquidy of each pair pool 
 	#[pallet::storage]
-	#[pallet::getter(fn get_liquidity)]
+	#[pallet::getter(fn get_total_liquidity)]
 	pub type PoolLiquidity<T: Config> = StorageMap<_, Blake2_128Concat, T::AssetID, T::Balance>;
 
+	#[pallet::storage]
+	#[pallet::getter(fn get_pool_liquidity]
+	pub type TPoolLiquity<T: Config> = StorageMap<
+		_, Blake2_128Concat, 
+		(T::AssetID, T::AccountId), 
+		T::Balance, 
+		OptionQuery
+	>;
 
 	// Pallets use events to inform users when important changes are made.
 	// https://docs.substrate.io/v3/runtime/events-and-errors
@@ -86,6 +103,7 @@ use super::*;
 		/// Errors should have helpful documentation associated with them.
 		StorageOverflow,
 		PoolIdError,
+		TransferToFailed,
 	}
 
 	// Dispatchable functions allows users to interact with the pallet and invoke state changes.
@@ -109,15 +127,29 @@ use super::*;
 			let account_id = ensure_signed(origin)?;
 			let (base, quote) = pair;
 			let (base_amount, quoted_amount) = target_amount;
-			let (min_base, min_quote) = minimum_amount;
-			
+
+			///	Create a new pool account 
 			let pool_id = Self::gen_new_exchange();
-			
+			///	Get the total liquidity of a pool 
 			let total_liquidity = Self::get_liquidity(base);
 			
 			if let Some(liquidity) = total_liquidity { 
 				if liquidity.is_zero() { 
-					assets::Pallet::<T>::transfer(account_id.clone(), from, value, asset_id)
+					T::MultiAsset::transfer(
+						account_id.clone(), 
+						pool_id.clone(),
+						base, 
+						base_amount
+					).map_err(|_| Error::<T>::TransferToFailed)?;
+					T::MultiAsset::transfer(
+						account_id.clone(),
+						pool_id.clone(),
+						quote,
+						quoted_amount
+					).map_err(|_| Error::<T>::TransferToFailed)?;
+					///	Set liquidity of an account in a pool
+					PoolLiquidity::<T>::insert(quote.clone(), account_id.clone(), base_amount.clone());
+					PoolLiquidity::<T>::mutate(quote, |balance| *balance = balance.checked_add(base_amount))
 				}
 			}
 

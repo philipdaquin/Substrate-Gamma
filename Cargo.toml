@@ -5,7 +5,7 @@ members = [
     # "pallets/loans",
     # "pallets/price_oracle",
     # "pallets/common"
-    # "pallets/amm",
+    "pallets/amm",
     # "runtime",
 
 ]
