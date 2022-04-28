@@ -12,3 +12,7 @@ pub trait MultiAsset<AccountId, AssetID, Balance> {
 		amount: Balance
 	) -> DispatchResult;
 }
+
+pub trait AssetBalance<AssetId, AccountId, Balance> { 
+	fn balance(asset_id: AssetId, account_id: AccountId) -> Balance;
+}

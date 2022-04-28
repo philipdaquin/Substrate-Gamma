@@ -7,17 +7,22 @@ pub use pallet::*;
 use frame_support::pallet_prelude::*;
 use frame_system::pallet_prelude::*;
 mod traits;
-use common::{MultiAsset};
-
+use common::{MultiAsset, AssetBalance};
+use frame_support::traits::Randomness;
+use frame_system::WeightInfo;
+use sp_runtime::{traits::{AtLeast32Bit, AtLeast32BitUnsigned, AccountIdConversion, Zero}, FixedU128};
+use frame_support::PalletId;
 use assets::{};
+
 
 #[frame_support::pallet]
 pub mod pallet {
-	use frame_support::traits::Randomness;
-use frame_system::WeightInfo;
-use sp_runtime::traits::{AtLeast32Bit, AtLeast32BitUnsigned, AccountIdConversion, Zero};
-use frame_support::PalletId;
+
 use super::*;
+	#[pallet::pallet]
+	#[pallet::generate_store(pub(super) trait Store)]
+	pub struct Pallet<T>(_);
+
 	/// Configure the pallet by specifying the parameters and types on which it depends.
 	#[pallet::config]
 	pub trait Config: frame_system::Config + assets::Config {
@@ -33,42 +38,51 @@ use super::*;
 		#[pallet::constant]
 		type PalletId: Get<PalletId>;
 		///	Standard Protocol Fee
-		#[pallet::constant]
-		type ProtocolFee: Get<Ratio>;
-
+		type Rate: Parameter + AtLeast32BitUnsigned + Default + Copy + MaxEncodedLen;
+		///	Accesses Asset Balance 
+		type AssetBalance: AssetBalance<Self::AssetID, Self::AccountId, Self::Balance>;
 	}
-	type Ratio = Parameter + AtLeast32BitUnsigned + Default + Copy;
 	type AssetIdOf<T> = <T as assets::Config>::AssetID;
 	type BalanceOf<T> = <T as assets::Config>::Balance;
-	#[pallet::pallet]
-	#[pallet::generate_store(pub(super) trait Store)]
-	pub struct Pallet<T>(_);
 
-	///	Pool index storage
+	///	The protocol fee
+	#[pallet::storage]
+	#[pallet::getter(fn get_fee)]
+	pub type ProtocolFee<T: Config> = StorageValue<_, T::Rate, ValueQuery, ()>;
+
+
+	///	Auxiliarry Storage used to track pool ids
 	#[pallet::storage]
 	#[pallet::getter(fn pool_id)]
 	pub type PoolIndex<T> = StorageValue<_, u32, ValueQuery>;
 
-	///	Pool-to-Asset Storage 
+	///	Accounts of Pools
 	#[pallet::storage]
-	#[pallet::getter(fn get_pool_id)]
-	pub type PoolAccount<T: Config> = StorageMap<
+	#[pallet::getter(fn get_pools)]
+	pub type Pools<T: Config> = StorageMap<
 		_, Blake2_128Concat, 
 		T::AssetID, 
 		T::AccountId, 
 		OptionQuery
 	>;
-
 	///	Liquidy of each pair pool 
+	/// A bag of liquidity composed by two different assets
 	#[pallet::storage]
 	#[pallet::getter(fn get_total_liquidity)]
-	pub type PoolLiquidity<T: Config> = StorageMap<_, Blake2_128Concat, T::AssetID, T::Balance>;
+	pub type TotalLiquidity<T: Config> = StorageMap<
+		_, 
+		Blake2_128Concat, 
+		T::AssetID, 
+		T::Balance,
+	>;
 
+	/// The Liquidity of each AssetID - AccountID	
 	#[pallet::storage]
-	#[pallet::getter(fn get_pool_liquidity]
-	pub type TPoolLiquity<T: Config> = StorageMap<
-		_, Blake2_128Concat, 
-		(T::AssetID, T::AccountId), 
+	#[pallet::getter(fn get_lp)]
+	pub type PoolLiquidity<T: Config> = StorageDoubleMap<
+		_, 
+		Blake2_128Concat, T::AssetID, 
+		Blake2_128Concat, T::AccountId, 
 		T::Balance, 
 		OptionQuery
 	>;
@@ -104,6 +118,7 @@ use super::*;
 		StorageOverflow,
 		PoolIdError,
 		TransferToFailed,
+		PoolNotFound
 	}
 
 	// Dispatchable functions allows users to interact with the pallet and invoke state changes.
@@ -122,39 +137,94 @@ use super::*;
 			origin: OriginFor<T>, 
 			pair: (T::AssetID, T::AssetID),
 			target_amount: (T::Balance, T::Balance),
-			minimum_amount: (T::Balance, T::Balance)
 		) -> DispatchResult {
+			//	The account to inject liquidity to paired pool 
 			let account_id = ensure_signed(origin)?;
-			let (base, quote) = pair;
-			let (base_amount, quoted_amount) = target_amount;
+			let (base_id, pair_id) = pair;
+			let (base_amount, pair_amount) = target_amount;
 
-			///	Create a new pool account 
+			//	Create a new pool account 
 			let pool_id = Self::gen_new_exchange();
-			///	Get the total liquidity of a pool 
-			let total_liquidity = Self::get_liquidity(base);
+			//	Get the total liquidity of a pool 
+			let total_liquidity = Self::get_total_liquidity(base_id);
 			
 			if let Some(liquidity) = total_liquidity { 
 				if liquidity.is_zero() { 
-					T::MultiAsset::transfer(
-						account_id.clone(), 
+					T::MultiAsset::transfer(account_id.clone(), 
 						pool_id.clone(),
-						base, 
-						base_amount
-					).map_err(|_| Error::<T>::TransferToFailed)?;
-					T::MultiAsset::transfer(
-						account_id.clone(),
-						pool_id.clone(),
-						quote,
-						quoted_amount
-					).map_err(|_| Error::<T>::TransferToFailed)?;
-					///	Set liquidity of an account in a pool
-					PoolLiquidity::<T>::insert(quote.clone(), account_id.clone(), base_amount.clone());
-					PoolLiquidity::<T>::mutate(quote, |balance| *balance = balance.checked_add(base_amount))
-				}
-			}
+						base_id, 
+						base_amount).map_err(|_| Error::<T>::TransferToFailed)?;
 
+					T::MultiAsset::transfer(account_id.clone(),
+						pool_id.clone(),
+						pair_id,
+						pair_amount).map_err(|_| Error::<T>::TransferToFailed)?;
+					//	Set liquidity of an account in a pool
+					Self::insert_liquidity(pair_id.clone(), account_id.clone(), base_amount.clone());
+					//	Update the total liquidity of 'pair_id' pool Account 
+					Self::update_pool_liquidity(pair_id.clone(), base_amount.clone(), true);
+				}  else { 
+					let total_base_amount = T::AssetBalance::balance(base_id, pool_id.clone());
+					
+					//	Transfer base_asset with base amount to the pool exchange account
+					T::MultiAsset::transfer(account_id.clone(), 
+						pool_id.clone(),
+						base_id.clone(),
+						base_amount.clone()).map_err(|_| Error::<T>::TransferToFailed)?;
+	
+					// Transfer the paired asset with pair_amount to the pool exchange account 
+					T::MultiAsset::transfer(account_id.clone(), 
+						pool_id.clone(), 
+						pair_id.clone(),
+						pair_amount.clone()).map_err(|_| Error::<T>::TransferToFailed)?;
+	
+					let minted_lp = liquidity * pair_amount / total_base_amount;
+					let pool_liquidity = PoolLiquidity::<T>::get(pair_id.clone(), account_id.clone())
+						.expect("Unable to get pool liquidity");
+					Self::insert_liquidity(pair_id.clone(), account_id.clone(), pool_liquidity + minted_lp);
+					Self::update_pool_liquidity(pair_id.clone(), minted_lp.clone(), true);
+				}
+				// Update the key pair 
+				Pools::<T>::insert(pair_id.clone(), pool_id.clone());
+			} 
+			//	Get the new paired asset balance
+			let total_pair_amount = T::AssetBalance::balance(pair_id, pool_id.clone());
+			Self::deposit_event(Event::<T>::ReserveChanged {
+				asset_id: pair_id.clone(),
+				amount: total_pair_amount.clone()
+			});
+			//	Get the new updated base balance
+			let base_id_amount = T::AssetBalance::balance(base_id.clone(), pool_id.clone());
+			Self::deposit_event(Event::<T>::ReserveChanged{ 
+				asset_id: base_id.clone(),
+				amount: base_id_amount.clone()
+			});
+
+			Self::deposit_event(Event::<T>::AddedLiquidity { 
+				account_id: account_id, 
+				amount: base_amount.clone(), 
+				asset_id: pair_id.clone() });
 
 			Ok(())
+		}
+		///	origin: User 
+		/// pair: [base, paired asset]
+		/// target_amount : [target_base, target_paired]
+		/// min_amount: [min_base, min_paired]
+		#[pallet::weight(1)]
+		pub fn remove_liquidity(
+			origin: OriginFor<T>,
+			pair: (T::AssetID, T::AssetID),
+			target_amount: (T::Balance, T::Balance),
+			min_amount: (T::Balance, T::Balance)
+		) -> DispatchResult { 
+			let account_id = ensure_signed(origin)?;
+			let (base_id, pair_id) = pair;
+			let (base_amount, pair_amount) = target_amount;
+
+			
+
+			Ok(())	
 		}
 	}
 	///	Helper Functions
@@ -172,6 +242,20 @@ use super::*;
 				Ok(current_id)
 			})
 		}
-
+		fn insert_liquidity(asset_id: T::AssetID, account_id: T::AccountId, amount: T::Balance) { 
+			PoolLiquidity::<T>::insert(asset_id.clone(), account_id, amount);
+			log::info!("Inserting Liquidity into {:?}", asset_id);
+		} 
+		fn update_pool_liquidity(asset_id: T::AssetID, amount: T::Balance, add_on: bool) { 
+			log::info!("Updating pool liquidity");
+			let mut total_liquidity = Self::get_total_liquidity(asset_id)
+				.expect("");
+			if add_on { 
+				total_liquidity += amount;
+			} else { 
+				total_liquidity -= amount;
+			}
+			TotalLiquidity::<T>::insert(asset_id, total_liquidity);
+		}
 	}
 }

@@ -1,5 +1,5 @@
 use super::*;
-use common::{MultiAsset, Oracle};
+use common::{MultiAsset, Oracle, AssetBalance};
 use frame_support::dispatch::DispatchResult;
 
 
@@ -14,4 +14,10 @@ impl<T: Config> MultiAsset<T::AccountId, T::AssetID, T::Balance> for Pallet<T> {
         
         Self::transfer_asset(from, to, amount, asset_id, transferred)
     }
+}
+
+impl<T: Config> AssetBalance<T::AssetID, T::AccountId, T::Balance> for Pallet<T> {
+    fn balance(asset_id: T::AssetID, account_id: T::AccountId) -> T::Balance {
+        Self::get_balances((asset_id, account_id))
+    } 
 }
