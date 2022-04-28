@@ -214,15 +214,61 @@ use super::*;
 		#[pallet::weight(1)]
 		pub fn remove_liquidity(
 			origin: OriginFor<T>,
-			pair: (T::AssetID, T::AssetID),
-			target_amount: (T::Balance, T::Balance),
+			pair_id: T::AssetID,
+			target_amount: T::Balance,
 			min_amount: (T::Balance, T::Balance)
 		) -> DispatchResult { 
-			let account_id = ensure_signed(origin)?;
-			let (base_id, pair_id) = pair;
-			let (base_amount, pair_amount) = target_amount;
 
-			
+			let account_id = ensure_signed(origin)?;
+			let base_id = assets::Pallet::<T>::get_inherent_asset().expect("");
+			let pool_id = Self::get_pools(base_id.clone()).expect("");
+			let pool_liquidity = Self::get_total_liquidity(base_id).expect("");
+			let pair_asset_liquidity = Self::get_lp(pair_id.clone(), account_id.clone()).expect("");
+			// Base and Pair pool
+			let base_pool = T::AssetBalance::balance(base_id.clone(), pool_id.clone());
+			let pair_pool = T::AssetBalance::balance(pair_id.clone(), pool_id.clone());
+			// Base and Pair Amounts
+			let base_amount = base_pool * target_amount / pool_liquidity;
+			let pair_amount = pair_pool * target_amount / pool_liquidity; 
+
+			log::warn!("Transferring base asset from pool exchange to the user");
+			//	Transfer base assets to the user from pool exchange
+			T::MultiAsset::transfer(
+				pool_id.clone(), 
+				account_id.clone(),
+				base_id.clone(),
+				base_amount.clone()).map_err(|_| Error::<T>::TransferToFailed)?;
+			log::warn!("Transferring pair asset from pool exchange to the user");
+				//	 Transfer pair assets to the user from pool exchange
+			T::MultiAsset::transfer(
+				account_id.clone(), 
+				pool_id.clone(), 
+				pair_id.clone(),
+				pair_amount.clone()).map_err(|_| Error::<T>::TransferToFailed)?;
+			// Update liquidity 
+			Self::insert_liquidity(pair_id.clone(), account_id.clone(), pair_asset_liquidity - target_amount  );
+			Self::update_pool_liquidity(pair_id.clone(), target_amount, false);
+			//	Update the new reserves
+			// Get the new liquidity balance of pair asset
+			let asset_liquidity = T::AssetBalance::balance(pair_id, pool_id.clone());
+			let base_liquidity = T::AssetBalance::balance(base_id, pool_id.clone());
+
+			Self::deposit_event(Event::<T>::ReserveChanged { 
+				asset_id: pair_id,
+				amount: asset_liquidity
+			});
+			Self::deposit_event(Event::<T>::ReserveChanged { 
+				asset_id: base_id.clone(),
+				amount: base_liquidity
+			});
+			log::info!("Removing Liquidity");
+			Self::deposit_event(Event::<T>::RemovedLiquidity {
+				account_id: account_id.clone(),
+				amount: target_amount.clone(),
+				asset_id: pair_id.clone()
+			});
+
+
 
 			Ok(())	
 		}
