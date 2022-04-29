@@ -274,11 +274,25 @@ use super::*;
 		}
 
 		#[pallet::weight(1)]
-		pub fn swap_assets(origin: OriginFor<T>) -> DispatchResult {
+		///	Swap two assets 
+		pub fn swap_assets(
+			origin: OriginFor<T>,
+			output_account: T::AccountId,
+			asset_id: T::AssetID,
+			output_amount: T::Balance,
+			max_input: T::Balance
+		) -> DispatchResult {
 			let account_id = ensure_signed(origin)?;
-
+			let base_id = assets::Pallet::<T>::get_inherent_asset().unwrap();
+			let fee_rate = Self::get_fee();
 			
-
+			Self::do_swap(
+				(account_id, output_account), 
+				(base_id, asset_id), 
+				output_amount,
+				max_input,
+				fee_rate
+			)?;
 
 			Ok(())
 		}

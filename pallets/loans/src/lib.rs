@@ -18,6 +18,7 @@ use sp_runtime::FixedPointNumber;
 use sp_std::{prelude::*, vec, convert::TryInto};
 
 
+
 #[frame_support::pallet]
 pub mod pallet {
 
@@ -25,6 +26,7 @@ pub mod pallet {
 	use super::*;
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
+	#[pallet::without_storage_info]
 	pub struct Pallet<T>(_);
 	
 	/// Configure the pallet by specifying the parameters and types on which it depends.
@@ -45,7 +47,12 @@ pub mod pallet {
 
 		#[pallet::constant]
 		type Palletid: Get<PalletId>;
+
+		#[pallet::constant]
+		type DefaultSet: Get<Self::AssetID>;
+
 	}
+	type AccountIdOf<T> = <T as frame_system::Config>::AccountId;
 	type AssetSet<T> = sp_std::vec::Vec<AssetIdOf<T>>;	
 	type AssetIdOf<T> = <T as Config>::AssetID;
 	type BalanceOf<T> = <T as Config>::Balance;
@@ -87,10 +94,11 @@ pub mod pallet {
 	pub(super) type UserAssetSet<T: Config> = StorageMap<
 		_,
 		Blake2_128Concat,
-		T::AccountId, 
-		vec::Vec<T::AssetID>,
+		AccountIdOf<T>, 
+		std::vec::Vec<T::AssetID>,
 		ValueQuery,
-	>; 
+
+ 	>; 
 	//	Set of User's debt
 	#[pallet::storage]
 	#[pallet::getter(fn user_debts)]
@@ -168,10 +176,10 @@ pub mod pallet {
 			Self::deposit_event(Event::<T>::Supplied { 
 				asset_id, 
 				amount,
-				account_id 
+				account_id: account_id.clone()
 			});
 			//	Insert the assets to the User Records
-			let mut user_assets = Self::user_assets(account_id);
+			let mut user_assets = Self::user_assets(account_id.clone());
 			user_assets.push(asset_id.clone());
 			UserAssetSet::<T>::insert(account_id, user_assets);
 			//	Update the pool 
@@ -190,7 +198,7 @@ pub mod pallet {
 			//	ensure total liquidity is greater than the asking amount 
 			ensure!(pool.total_asset - pool.total_debt > amount, Error::<T>::InsufficientLiquidity);
 			//	Accrue the user Interet first
-			Self::get_user_debt_with_interest(asset_id, account_id);
+			Self::get_user_debt_with_interest(asset_id, account_id.clone());
 			
 			//	Collaterals
 			let (_, current_collateral, needed_collateral) = Self::get_user_balances(account_id.clone());
@@ -212,18 +220,18 @@ pub mod pallet {
 			).map_err(|_| Error::<T>::TransferIntoFailed)?;
 
 			//	Update the current user debt: DAdd new debt_amount to the user on chain 
-			Self::update_user_debt(account_id, asset_id, &pool, amount, true);
+			Self::update_user_debt(account_id.clone(), asset_id, &pool, amount, true);
 			//	Update the current pool debt: Add new borrowed amount 
 			Self::update_pool_debt(&mut pool, amount, true);
 			//	Emit borrowed event 
 			Self::deposit_event(Event::<T>::Borrowed { 
 				asset_id, 
 				amount, 
-				account_id, 
+				account_id: account_id.clone(), 
 			});
 
 			//	Update the user's asset debt 
-			let mut assets = Self::user_debts(account_id);
+			let mut assets = Self::user_debts(account_id.clone());
 			//	Add the debt set to the user's account if it doesnt exist yet
 			if !assets.iter().any(|target| *target == asset_id ) { 
 				assets.push(asset_id);
@@ -237,14 +245,14 @@ pub mod pallet {
 			Ok(())
 		}
 		#[pallet::weight(10)]
-		pub fn withdraw_asset(origin: OriginFor<T>, asset_id: T::AssetID, amount: T::Balance ) -> DispatchResult { 
+		pub fn withdraw_asset(origin: OriginFor<T>, asset_id: T::AssetID, mut amount: T::Balance ) -> DispatchResult { 
 			let account_id = ensure_signed(origin)?;
 			//	Check the pool 
 			let mut pool = Self::get_pool(asset_id).ok_or(Error::<T>::DbPoolNotExist)?;
 
 			//	Ensure the amount is no greater than the actual witholding assets of the user
 			//	else set the amount to the left over supplied amount 
-			if let Some(user_assets) = UserAssetInfo::<T>::get(asset_id, account_id) { 
+			if let Some(user_assets) = UserAssetInfo::<T>::get(asset_id, account_id.clone()) { 
 				ensure!(user_assets.supplied_amount >= amount, Error::<T>::Insufficientasset);
 				amount = user_assets.supplied_amount;
 			}
@@ -255,7 +263,7 @@ pub mod pallet {
 			
 			//	Check Users Collateral, ensure that it would not trigger liquidation process would not be triggered 
 			let	(balance, 
-				asset_with_interest, debt_balance) = Self::get_user_balances(account_id);			
+				asset_with_interest, debt_balance) = Self::get_user_balances(account_id.clone());			
 			// Safe factor 
 			let safe_factor = pool.safe_factor.clone();
 			//	Get current Price 
@@ -279,7 +287,7 @@ pub mod pallet {
 				Self::fund_account_id(), account_id.clone(), asset_id.clone(), amount
 			).map_err(|_| Error::<T>::TransferIntoFailed)?;
 
-			Self::deposit_event(Event::<T>::Withdrawn { asset_id, withdrawn_amount: amount.clone(), account_id });
+			Self::deposit_event(Event::<T>::Withdrawn { asset_id, withdrawn_amount: amount.clone(), account_id: account_id.clone() });
 
 			//	Update the user records onchain 
 			Self::update_user_asset(account_id.clone(), asset_id, &pool, amount, false);
@@ -301,7 +309,7 @@ pub mod pallet {
 			Self::accrue_user_debt(&mut pool, asset_id, account_id.clone());
 			let mut amount = amount; 
 			//	Check if the user owes anything 
-			if let Some(user_debt) = Self::get_user_debt(asset_id, account_id) { 
+			if let Some(user_debt) = Self::get_user_debt(asset_id, account_id.clone()) { 
 				//	To repay, the repayment must be greater than the debt amount 
 				ensure!(user_debt.debt_amount != T::Balance::zero(), Error::<T>::UserHasNoDebt);
 				ensure!(amount != T::Balance::zero(), Error::<T>::UserPayingZeroAmount);
@@ -312,13 +320,13 @@ pub mod pallet {
 			}
 			//	Trasnfer the users assets to the pools account 
 			T::MultiAsset::transfer(
-				account_id,
+				account_id.clone(),
 				Self::fund_account_id(),
 				asset_id, 
 				amount
 			).map_err(|_| Error::<T>::TransferIntoFailed)?;
 			//	Update the users debt 
-			Self::update_user_debt(account_id, asset_id, &pool, amount, false);
+			Self::update_user_debt(account_id.clone(), asset_id, &pool, amount, false);
 			//	Update the pool's debt 
 			Self::update_pool_debt(&mut pool, amount, false);
 			//	Deposit event 
@@ -520,7 +528,7 @@ pub mod pallet {
 
 					UserAssetInfo::<T>::remove(asset_id, account_id.clone());
 					// Update the User asset Set 
-					let mut assets = UserAssetSet::<T>::get(account_id);
+					let mut assets = UserAssetSet::<T>::get(account_id.clone());
 					//	Remove the asset equal to Zero 
 					assets.retain(|n| *n != asset_id);
 					UserAssetSet::<T>::insert(account_id, assets);
@@ -564,9 +572,9 @@ pub mod pallet {
 				} else { 
 					log::warn!("📭 User Has Zero Debt, Updating OnChain DB...");
 					//	If the user debt IS NULL
-					UserDebtInfo::<T>::remove(asset_id, account_id);
+					UserDebtInfo::<T>::remove(asset_id, account_id.clone());
 					//	Update the user_set debt 
-					let mut debt = Self::user_debts(account_id);
+					let mut debt = Self::user_debts(account_id.clone());
 					debt.retain(|x| *x != asset_id );
 					UserDebtSet::<T>::insert(account_id, debt);
 				}
@@ -616,7 +624,7 @@ pub mod pallet {
 		}
 		///	Accrue user debt with Interest 
 		fn accrue_user_debt(pool: &mut Pools<T>, asset_id: T::AssetID, account_id: T::AccountId) { 
-			if let Some(mut user_debt) = Self::get_user_debt(asset_id, account_id) { 
+			if let Some(mut user_debt) = Self::get_user_debt(asset_id, account_id.clone()) { 
 				//	
 				let pool_to_user_ratio = pool.total_debt_index / user_debt.index;
 				
@@ -673,7 +681,7 @@ pub mod pallet {
 		///  Total convereted supply balance 
 		///  Total total debt balance
 		fn get_user_balances(account_id: T::AccountId) -> (T::Balance, T::Balance, T::Balance) { 
-			let user_assets = Self::user_assets(account_id);
+			let user_assets = Self::user_assets(account_id.clone());
 			let (mut balance, mut converted_balance) = (T::Balance::zero(), T::Balance::zero());
 
 			//	Assets with interest 
@@ -691,7 +699,7 @@ pub mod pallet {
 			
 			//	The amount needed for collateral 
 			let mut debt_balance = T::Balance::zero();
-			let user_debt = Self::user_debts(account_id);
+			let user_debt = Self::user_debts(account_id.clone());
 			for debt in user_debt { 
 				let debt_amount = Self::get_user_debt_with_interest(debt, account_id.clone());
 				let price = T::Oracle::get_rate(debt);

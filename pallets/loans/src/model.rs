@@ -1,6 +1,10 @@
 use super::*;
 use sp_std::vec::Vec;
 
+#[cfg(all(feature = "derive", feature = "max-encoded-len"))]
+pub use parity_scale_codec_derive::MaxEncodedLen;
+
+
 #[derive(PartialEq, RuntimeDebug, Encode, Decode, Clone, TypeInfo, MaxEncodedLen)]
 #[scale_info(skip_type_params(T))]
 pub struct Pool<AssetID, Balance, BlockNumber> { 
@@ -54,3 +58,10 @@ pub struct UserDebt<AssetID, Balance> {
 	///	Index 
 	pub index: FixedU128
 }
+
+#[derive(PartialEq, RuntimeDebug, Eq, Encode, Decode, Clone, TypeInfo)]
+#[scale_info(skip_type_params(T))]
+pub struct UserSet<AssetID> { 
+    pub asset_set: Vec<AssetID>
+}
+
