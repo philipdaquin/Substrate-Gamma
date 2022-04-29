@@ -10,9 +10,10 @@ mod traits;
 use common::{MultiAsset, AssetBalance};
 use frame_support::traits::Randomness;
 use frame_system::WeightInfo;
-use sp_runtime::{traits::{AtLeast32Bit, AtLeast32BitUnsigned, AccountIdConversion, Zero}, FixedU128};
+use sp_runtime::{traits::{AtLeast32Bit, AtLeast32BitUnsigned, AccountIdConversion, Zero, Bounded}, FixedU128};
 use frame_support::PalletId;
-use assets::{};
+use assets;
+use sp_std::result::Result;
 
 
 #[frame_support::pallet]
@@ -118,7 +119,8 @@ use super::*;
 		StorageOverflow,
 		PoolIdError,
 		TransferToFailed,
-		PoolNotFound
+		PoolNotFound,
+		InsufficientBalance
 	}
 
 	// Dispatchable functions allows users to interact with the pallet and invoke state changes.
@@ -268,9 +270,17 @@ use super::*;
 				asset_id: pair_id.clone()
 			});
 
-
-
 			Ok(())	
+		}
+
+		#[pallet::weight(1)]
+		pub fn swap_assets(origin: OriginFor<T>) -> DispatchResult {
+			let account_id = ensure_signed(origin)?;
+
+			
+
+
+			Ok(())
 		}
 	}
 	///	Helper Functions
@@ -303,5 +313,108 @@ use super::*;
 			}
 			TotalLiquidity::<T>::insert(asset_id, total_liquidity);
 		}
+		fn do_swap(
+			account_id: (T::AccountId, T::AccountId),
+			asset_id: (T::AssetID, T::AssetID),
+			output_amount: T::Balance, 
+			input_amount: T::Balance,
+			fee_rate: T::Rate 
+		) -> DispatchResult { 
+			let base_id = assets::Pallet::<T>::get_inherent_asset().expect("");
+			let (input_acc, output_acc) = account_id;
+			let (a, b) = asset_id;
+			let (pool_a, pool_b) = (
+				Self::get_pools(a).expect(""),
+				Self::get_pools(b).expect(""),
+			);
+			let base_amount = Self::calculate_input_amount(
+				base_id.clone(), input_amount, fee_rate.clone())?;
+			let a_pool_amount = Self::calculate_input_amount(
+				b, output_amount, fee_rate)?;
+			T::MultiAsset::transfer(
+				input_acc.clone(),
+				pool_a.clone(),
+				a,
+				input_amount.clone()
+			).map_err(|_| Error::<T>::TransferToFailed)?;
+			T::MultiAsset::transfer(
+				output_acc.clone(),
+				pool_b.clone(),
+				b,
+				output_amount.clone()
+			).map_err(|_| Error::<T>::TransferToFailed)?;
+
+			//	Update the new reserves
+			// Get the new liquidity balance of pair asset
+			let a_liquidity = T::AssetBalance::balance(a, pool_a.clone());
+			let b_liquidity = T::AssetBalance::balance(b, pool_b.clone());
+			let base_liquidity = T::AssetBalance::balance(base_id, pool_a.clone());
+			Self::deposit_event(Event::<T>::ReserveChanged { 
+				asset_id: a.clone(),
+				amount: a_liquidity
+			});
+			Self::deposit_event(Event::<T>::ReserveChanged { 
+				asset_id: b.clone(),
+				amount: b_liquidity
+			});
+			Self::deposit_event(Event::<T>::ReserveChanged { 
+				asset_id: base_id.clone(),
+				amount: base_liquidity
+			});
+			log::info!("Removing Liquidity");
+
+			Ok(())
+		}
+		fn calculate_input_amount(
+			asset_id: T::AssetID, 
+			amount: T::Balance, 
+			fee: T::Rate
+		) -> Result<T::Balance, DispatchError> { 
+			//	Base Asset From the Protocol
+			let base_id = assets::Pallet::<T>::get_inherent_asset().expect("");
+			//	Pool Address of Asset 
+			let pool_id = Self::get_pools(asset_id).expect("");
+			//	Base amount balanec inside the pool_id 
+			let base_amount = T::AssetBalance::balance(base_id, pool_id.clone());
+			//	Target Asset Balance
+			let asset_balance = T::AssetBalance::balance(asset_id.clone(), pool_id);
+
+			ensure!(!base_amount.is_zero(), Error::<T>::InsufficientBalance);
+			ensure!(!asset_balance.is_zero(), Error::<T>::InsufficientBalance);
+
+			let insert_amount = if base_amount >= asset_balance { 
+				T::Balance::max_value()
+			} else { 
+				Self::calculate_output( amount, base_amount, asset_balance, fee)?
+			};
+
+			Ok(insert_amount )
+		}
+		
+		fn calculate_output(
+			amount: T::Balance, 
+			base_amount: T::Balance, 
+			asset_balance: T::Balance,
+			fee: T::Rate
+		) -> Result<T::Balance, DispatchError> { 	
+			let output = TryInto::<u128>::try_into(amount)
+				.ok().expect("Unable to convert to U128");
+			let base_output = TryInto::<u128>::try_into(base_amount)
+				.ok().expect("Unable to convert to U128");
+			let asset_output = TryInto::<u128>::try_into(asset_balance)
+				.ok().expect("Unable to convert to U128");
+			
+			let difference = output.saturating_sub(asset_output);
+			let base = base_output.saturating_mul(output) / difference;
+
+			Ok(
+				TryInto::<T::Balance>::try_into(base)
+					.ok()
+					.expect("Balance is U128")
+			)
+
+		}	
+
+
 	}
 }
