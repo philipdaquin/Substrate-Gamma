@@ -1,13 +1,14 @@
 [workspace]
 members = [
-    "node",
-    "pallets/assets",
+    # "node",
+    # "pallets/assets",
     # "pallets/loans",
     # "pallets/loans/lending_rpc",
     # "pallets/price_oracle",
     # "pallets/common",
     # "pallets/amm",
-    # "runtime"
+    # "runtime",
+    "runtime_copy"
 ]
 [profile.release]
 panic = "unwind"

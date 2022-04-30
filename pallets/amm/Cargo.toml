@@ -44,7 +44,7 @@ std = [
 	"serde",
 	"sp-std/std",
 	"assets/std",
-	"sp-io/std",
+	# "sp-io/std",
 	"common/std"
 ]
 

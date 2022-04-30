@@ -46,28 +46,28 @@ pallet-transaction-payment-rpc-runtime-api = { git = 'https://github.com/parityt
 # Used for runtime benchmarking
 frame-benchmarking                         = { git = 'https://github.com/paritytech/substrate.git', branch = 'polkadot-v0.9.19', default-features = false, optional = true }
 frame-system-benchmarking                  = { git = 'https://github.com/paritytech/substrate.git', branch = 'polkadot-v0.9.19', default-features = false, optional = true }
-hex-literal = { version = "0.3.4", optional = true }
+hex-literal 							   = { version = "0.3.4", optional = true }
 
 # Local Dependencies
-pallet-template = { version = "4.0.0-dev", default-features = false, path = "../pallets/template" }
+pallet-template 						   = { version = "4.0.0-dev", default-features = false, path = "../pallets/template" }
 
 # AMM Example
-loans = {version = "4.0.0-dev", default-features = false, path = "../pallets/loans"}
-pallet-loans-rpc-runtime-api = { version = "1.8.4", default-features = false, path = "../pallets/loans/lending_rpc/runtime_api/"}
+# loans									   = { version = "4.0.0-dev", default-features = false, path = "../pallets/loans"}
+# pallet-loans-rpc-runtime-api 			   = { version = "1.8.4", default-features = false, path = "../pallets/loans/lending_rpc/runtime_api/"}
 
 
-assets = {version = "4.0.0-dev", default-features = false, path = "../pallets/assets"}
-price_oracle = {version = "4.0.0-dev", default-features = false, path = "../pallets/price_oracle"}
-amm = {version = "4.0.0-dev", default-features = false, path = "../pallets/amm"}
-getrandom = { version = "0.2", default-features = false, features = ["js"] }
+# assets 									   = { version = "4.0.0-dev", default-features = false, path = "../pallets/assets"}
+# price_oracle 							   = { version = "4.0.0-dev", default-features = false, path = "../pallets/price_oracle"}
+# amm                                        = { version = "4.0.0-dev", default-features = false, path = "../pallets/amm"}
+# getrandom                                  = { version = "0.2", default-features = false, features = ["js"] }
 
 [build-dependencies]
-substrate-wasm-builder = { version = "5.0.0-dev", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.18" }
+substrate-wasm-builder                     = { version = "5.0.0-dev", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.18" }
 
 [features]
 default = ["std"]
 std = [
-	"getrandom/std",
+	# "getrandom/std",
 	"codec/std",
 	"scale-info/std",
 	"frame-executive/std",
@@ -95,11 +95,11 @@ std = [
 	"sp-transaction-pool/std",
 	"sp-version/std",
 	# AMM 
-	"loans/std",
-	"pallet-loans-rpc-runtime-api/std",
-	"assets/std",
-	"price_oracle/std",
-	"amm/std",
+	# "loans/std",
+	# "pallet-loans-rpc-runtime-api/std",
+	# "assets/std",
+	# "price_oracle/std",
+	# "amm/std",
 ]
 runtime-benchmarks = [
 	"frame-benchmarking/runtime-benchmarks",

@@ -41,7 +41,7 @@ std = [
 	# "serde",
 	"sp-std/std",
 	"assets/std",
-	"sp-io/std",
+	# "sp-io/std",
 	"lite-json/std",
 	"sp-runtime/std"
 ]

@@ -273,62 +273,62 @@ impl pallet_template::Config for Runtime {
 	type Event = Event;
 }
 // ----------------------- Pallet Config Types ----------------------//
-pub type AssetID = u64;
-pub type Rate = u64;
+// pub type AssetID = u64;
+// pub type Rate = u64;
 
-pub use assets;
-/// Configure the pallet-template in pallets/template.
-impl assets::Config for Runtime {
-	type Event = Event;
-	type AssetID = AssetID;
-	type Balance = Balance;
-}
-pub use amm;
-/// Configure the pallet-template in pallets/template.
-impl amm::Config for Runtime {
-	type Event = Event;
-	type SwapsWeight = ();
-	type MultiAsset = Assets;
-	type PalletId = LoansPalletId;
-	type Rate = Rate;
-	type AssetBalance = Assets;
-	type ForceOrigin = AmmForceOrigin;
+// pub use assets;
+// /// Configure the pallet-template in pallets/template.
+// impl assets::Config for Runtime {
+// 	type Event = Event;
+// 	type AssetID = AssetID;
+// 	type Balance = Balance;
+// }
+// pub use amm;
+// /// Configure the pallet-template in pallets/template.
+// impl amm::Config for Runtime {
+// 	type Event = Event;
+// 	type SwapsWeight = ();
+// 	type MultiAsset = Assets;
+// 	type PalletId = LoansPalletId;
+// 	type Rate = Rate;
+// 	type AssetBalance = Assets;
+// 	type ForceOrigin = AmmForceOrigin;
 
-}
-parameter_types! {
-	pub const AMMPalletId: PalletId = PalletId(*b"par/loan");
-	pub const AmmForceOrigin = EnsureRoot<AccountId>;
-}
-pub use loans;
-/// Configure the pallet-template in pallets/template.
-impl loans::Config for Runtime {
-	type Event = Event;
-	type LiquidationThreshold = LoansThreshold;
-	type AssetID = AssetID;
-	type Balance = Balance;
-	type PalletId = LoansPalletId;
-	type DefaultSet = LoansDefaultSet;
-	type MultiAsset = Assets;
-	type Oracle = PriceOracle;
-}
-parameter_types! { 
-	pub const LoansThreshold: FixedU128 = 1;
-	pub const LoansPalletId: PalletId = PalletId(*b"par/ammp");
-	pub const LoansDefaultSet: AssetID = 10u64;
-}
-pub use price_oracle;
-/// Configure the pallet-template in pallets/template.
-impl price_oracle::Config for Runtime {
-	type Event = Event;
-	type Call = Call;
-	type UnsignedPriority = UnsignedPriority;
-	type UnsignedInterval = UnsignedInterval;
+// }
+// parameter_types! {
+// 	pub const AMMPalletId: PalletId = PalletId(*b"par/loan");
+// 	pub const AmmForceOrigin = EnsureRoot<AccountId>;
+// }
+// pub use loans;
+// /// Configure the pallet-template in pallets/template.
+// impl loans::Config for Runtime {
+// 	type Event = Event;
+// 	type LiquidationThreshold = LoansThreshold;
+// 	type AssetID = AssetID;
+// 	type Balance = Balance;
+// 	type PalletId = LoansPalletId;
+// 	type DefaultSet = LoansDefaultSet;
+// 	type MultiAsset = Assets;
+// 	type Oracle = PriceOracle;
+// }
+// parameter_types! { 
+// 	pub const LoansThreshold: FixedU128 = 1;
+// 	pub const LoansPalletId: PalletId = PalletId(*b"par/ammp");
+// 	pub const LoansDefaultSet: AssetID = 10u64;
+// }
+// pub use price_oracle;
+// /// Configure the pallet-template in pallets/template.
+// impl price_oracle::Config for Runtime {
+// 	type Event = Event;
+// 	type Call = Call;
+// 	type UnsignedPriority = UnsignedPriority;
+// 	type UnsignedInterval = UnsignedInterval;
 
-}
-parameter_types! {
-	pub const UnsignedPriority: u32 = 5;
-	pub const UnsignedInterval: BlockNumber = 4;
-}
+// }
+// parameter_types! {
+// 	pub const UnsignedPriority: u32 = 5;
+// 	pub const UnsignedInterval: BlockNumber = 4;
+// }
 
 // -------------------------------------------------------------------//
 
@@ -350,10 +350,10 @@ construct_runtime!(
 
 		// Include the custom logic from the pallet-template in the runtime.
 		TemplateModule: pallet_template,
-		Assets: assets,
-		Amm: amm,
-		PriceOracle: price_oracle,
-		Loans: loans
+		// Assets: assets,
+		// Amm: amm,
+		// PriceOracle: price_oracle,
+		// Loans: loans
 	}
 );
 
@@ -397,10 +397,7 @@ mod benches {
 		[pallet_balances, Balances]
 		[pallet_timestamp, Timestamp]
 		[pallet_template, TemplateModule]
-		[assets, Assets]
-		[amm, Amm]
-		[price_oracle, PriceOracle]
-		[loans, Loans]
+		
 	);
 }
 
