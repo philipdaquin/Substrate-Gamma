@@ -384,7 +384,7 @@ pub mod pallet {
 				T::Oracle::get_rate(target_asset_id));
 			let discounted_price = payment_price * target_pool.discount_factor;
 			let payment_limit = (target_asset_price/ discounted_price).saturating_mul_int(arbitrage_limit);
-			let mut target_user_debt = Self::get_user_debt(target_asset_id, target_id.clone())
+			let target_user_debt = Self::get_user_debt(target_asset_id, target_id.clone())
 				.ok_or(Error::<T>::InsufficientLiquidity)?;
 			
 			//	Reset the amount that will be paid 

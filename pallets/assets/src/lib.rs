@@ -33,9 +33,6 @@ pub mod pallet {
 		type Balance: Member + Parameter + AtLeast32BitUnsigned + FixedPointOperand + Default + Copy + MaxEncodedLen + TypeInfo;
 		///	The arithmetic type of asset identifier
 		type AssetID: Parameter + Default + AtLeast32BitUnsigned + Copy + MaxEncodedLen + TypeInfo + HasCompact;
-		//	The origin which may forcibly create or destroy an asset or otherwise alter 
-		//	priviledged attributes
-		type ForceOrigin: EnsureOrigin<Self::Origin>;
 	}
 
 	///	Asset Id 

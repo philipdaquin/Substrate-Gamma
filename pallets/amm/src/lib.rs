@@ -42,6 +42,8 @@ use super::*;
 		type Rate: Parameter + AtLeast32BitUnsigned + Default + Copy + MaxEncodedLen;
 		///	Accesses Asset Balance 
 		type AssetBalance: AssetBalance<Self::AssetID, Self::AccountId, Self::Balance>;
+		///	The origin which may set the Protocol Fee 
+		type ForceOrigin: EnsureOrigin<Self::Origin>;
 	}
 	type AssetIdOf<T> = <T as assets::Config>::AssetID;
 	type BalanceOf<T> = <T as assets::Config>::Balance;
@@ -106,7 +108,11 @@ use super::*;
 			asset_b: T::AssetID, 
 			amount_b: T::Balance
 		},
-		ReserveChanged { asset_id: T::AssetID, amount: T::Balance }
+		///	Update the Pool under this Asset 
+		ReserveChanged { asset_id: T::AssetID, amount: T::Balance },
+		///	Event after setting the Protocol Fee
+		ProtocolFeeSet { fee: T::Rate }
+		
 
 	}
 
@@ -294,6 +300,13 @@ use super::*;
 				fee_rate
 			)?;
 
+			Ok(())
+		}
+		#[pallet::weight(10)]
+		pub fn set_fee(origin: OriginFor<T>, fee: T::Rate) -> DispatchResult { 
+			T::ForceOrigin::ensure_origin(origin)?;
+			ProtocolFee::<T>::mutate(|f| *f = fee );
+			Self::deposit_event(Event::<T>::ProtocolFeeSet { fee });
 			Ok(())
 		}
 	}
