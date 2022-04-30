@@ -6,6 +6,7 @@
 #[cfg(feature = "std")]
 include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 
+use sp_runtime::FixedU128;
 use pallet_grandpa::{
 	fg_primitives, AuthorityId as GrandpaId, AuthorityList as GrandpaAuthorityList,
 };
@@ -25,7 +26,7 @@ use sp_version::RuntimeVersion;
 
 // A few exports that help ease life for downstream crates.
 pub use frame_support::{
-	construct_runtime, parameter_types,
+	construct_runtime, parameter_types, PalletId, 
 	traits::{ConstU128, ConstU32, ConstU8, KeyOwnerProofSystem, Randomness, StorageInfo},
 	weights::{
 		constants::{BlockExecutionWeight, ExtrinsicBaseWeight, RocksDbWeight, WEIGHT_PER_SECOND},
@@ -275,12 +276,14 @@ impl pallet_template::Config for Runtime {
 pub type AssetID = u64;
 pub type Rate = u64;
 
+pub use assets;
 /// Configure the pallet-template in pallets/template.
 impl assets::Config for Runtime {
 	type Event = Event;
 	type AssetID = AssetID;
 	type Balance = Balance;
 }
+pub use amm;
 /// Configure the pallet-template in pallets/template.
 impl amm::Config for Runtime {
 	type Event = Event;
@@ -296,6 +299,7 @@ parameter_types! {
 	pub const AMMPalletId: PalletId = PalletId(*b"par/loan");
 	pub const AmmForceOrigin = EnsureRoot<AccountId>;
 }
+pub use loans;
 /// Configure the pallet-template in pallets/template.
 impl loans::Config for Runtime {
 	type Event = Event;
@@ -307,11 +311,12 @@ impl loans::Config for Runtime {
 	type MultiAsset = Assets;
 	type Oracle = PriceOracle;
 }
-parameter_type! { 
+parameter_types! { 
 	pub const LoansThreshold: FixedU128 = 1;
 	pub const LoansPalletId: PalletId = PalletId(*b"par/ammp");
-	pub const LoansDefaultSet: AssetID = 1_000u64;
+	pub const LoansDefaultSet: AssetID = 10u64;
 }
+pub use price_oracle;
 /// Configure the pallet-template in pallets/template.
 impl price_oracle::Config for Runtime {
 	type Event = Event;
@@ -322,7 +327,7 @@ impl price_oracle::Config for Runtime {
 }
 parameter_types! {
 	pub const UnsignedPriority: u32 = 5;
-	pub const UnsignedInterval: BlockNUmber = 4;
+	pub const UnsignedInterval: BlockNumber = 4;
 }
 
 // -------------------------------------------------------------------//
@@ -392,6 +397,10 @@ mod benches {
 		[pallet_balances, Balances]
 		[pallet_timestamp, Timestamp]
 		[pallet_template, TemplateModule]
+		[assets, Assets]
+		[amm, Amm]
+		[price_oracle, PriceOracle]
+		[loans, Loans]
 	);
 }
 

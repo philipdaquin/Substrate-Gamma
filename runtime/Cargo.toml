@@ -54,6 +54,10 @@ pallet-template = { version = "4.0.0-dev", default-features = false, path = "../
 
 # AMM Example
 loans = {version = "4.0.0-dev", default-features = false, path = "../pallets/loans"}
+# lending-runtime-api = {version = "4.0.0-dev", default-features = false, path = "../pallets/loans/lending-rpc/runtime-api/"}
+
+
+
 assets = {version = "4.0.0-dev", default-features = false, path = "../pallets/assets"}
 price_oracle = {version = "4.0.0-dev", default-features = false, path = "../pallets/price_oracle"}
 amm = {version = "4.0.0-dev", default-features = false, path = "../pallets/amm"}

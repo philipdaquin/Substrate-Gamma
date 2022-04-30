@@ -680,7 +680,7 @@ pub mod pallet {
 		///	 Total asset Balance
 		///  Total convereted supply balance 
 		///  Total total debt balance
-		fn get_user_balances(account_id: T::AccountId) -> (T::Balance, T::Balance, T::Balance) { 
+		pub fn get_user_balances(account_id: T::AccountId) -> (T::Balance, T::Balance, T::Balance) { 
 			let user_assets = Self::user_assets(account_id.clone());
 			let (mut balance, mut converted_balance) = (T::Balance::zero(), T::Balance::zero());
 
@@ -726,6 +726,9 @@ pub mod pallet {
 				log::warn!("📢 Pool Does not Exist!");
 				return FixedU128::zero()
 			}
+		}
+		pub fn find_user_assets(account_id: T::AccountId) -> AssetSet<T> { 
+			Self::user_assets(account_id)
 		}
 		
 	}
