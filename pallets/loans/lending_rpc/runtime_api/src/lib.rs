@@ -1,7 +1,7 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 use sp_api::decl_runtime_apis;
 use codec::Codec;
-use sp_std::vec;
+
 sp_api::decl_runtime_apis! { 
     pub trait LoansApi<AssetID, FixedU128, AccountId, Balance> where
         AssetID: Codec,

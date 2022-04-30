@@ -273,16 +273,16 @@ impl pallet_template::Config for Runtime {
 	type Event = Event;
 }
 // ----------------------- Pallet Config Types ----------------------//
-// pub type AssetID = u64;
-// pub type Rate = u64;
+pub type AssetID = u64;
+pub type Rate = u64;
 
-// pub use assets;
-// /// Configure the pallet-template in pallets/template.
-// impl assets::Config for Runtime {
-// 	type Event = Event;
-// 	type AssetID = AssetID;
-// 	type Balance = Balance;
-// }
+pub use assets;
+/// Configure the pallet-template in pallets/template.
+impl assets::Config for Runtime {
+	type Event = Event;
+	// type AssetID = AssetID;
+	// type Balance = Balance;
+}
 // pub use amm;
 // /// Configure the pallet-template in pallets/template.
 // impl amm::Config for Runtime {
@@ -350,7 +350,7 @@ construct_runtime!(
 
 		// Include the custom logic from the pallet-template in the runtime.
 		TemplateModule: pallet_template,
-		// Assets: assets,
+		Assets: assets,
 		// Amm: amm,
 		// PriceOracle: price_oracle,
 		// Loans: loans

@@ -52,7 +52,7 @@ pallet-template 							= { version = "4.0.0-dev", 		default-features = false, pa
 
 
 loans									   = { version = "4.0.0-dev", 		default-features = false, path = "../pallets/loans"}
-# pallet-loans-rpc-runtime-api 			   = { version = "1.8.4", 			default-features = false, path = "../pallets/loans/lending_rpc/runtime_api/"}
+pallet-loans-rpc-runtime-api 			   = { version = "1.8.4", 			default-features = false, path = "../pallets/loans/lending_rpc/runtime_api/"}
 assets 									   = { version = "4.0.0-dev", default-features = false, path = "../pallets/assets"}
 price_oracle 							   = { version = "4.0.0-dev", default-features = false, path = "../pallets/price_oracle"}
 amm                                        = { version = "4.0.0-dev", 		default-features = false, path = "../pallets/amm"}
@@ -97,8 +97,8 @@ std = [
 	"loans/std",
 	"amm/std",
 	"price_oracle/std",
-	"assets/std"
-	# "pallet-loans-rpc-runtime-api/std"
+	"assets/std",
+	"pallet-loans-rpc-runtime-api/std"
 ]
 runtime-benchmarks = [
 	"frame-benchmarking/runtime-benchmarks",

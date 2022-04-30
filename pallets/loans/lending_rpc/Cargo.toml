@@ -10,17 +10,16 @@ publish = false
 repository = "https://github.com/substrate-developer-hub/substrate-node-template/"
 
 [dependencies]
-codec = { package = 'parity-scale-codec', version = '3.0.0', default-features = false, features = ['derive'] }
-jsonrpc-core = "18.0.0"
-jsonrpc-core-client = "18.0.0"
-jsonrpc-derive = "18.0.0"
-sp-api = { git = 'https://github.com/paritytech/substrate.git', branch = 'polkadot-v0.9.19' }
-sp-blockchain = { git = 'https://github.com/paritytech/substrate.git', branch = 'polkadot-v0.9.19' }
-sp-core = { git = 'https://github.com/paritytech/substrate.git', branch = 'polkadot-v0.9.19' }
-sp-rpc = { git = 'https://github.com/paritytech/substrate.git', branch = 'polkadot-v0.9.19', default-features = false }
-sp-runtime = { git = 'https://github.com/paritytech/substrate.git', branch = 'polkadot-v0.9.19' }
-
+codec               = { package = 'parity-scale-codec', version = '3.0.0' }
+jsonrpc-core        = '18.0.0'
+jsonrpc-core-client = '18.0.0'
+jsonrpc-derive      = '18.0.0'
+serde               = { version = '1.0.136', features = ['derive'] }
+sp-api              = { git = 'https://github.com/paritytech/substrate.git', branch = 'polkadot-v0.9.19' }
+sp-blockchain       = { git = 'https://github.com/paritytech/substrate.git', branch = 'polkadot-v0.9.19' }
+sp-core             = { git = 'https://github.com/paritytech/substrate.git', branch = 'polkadot-v0.9.19' }
+sp-rpc              = { git = 'https://github.com/paritytech/substrate.git', branch = 'polkadot-v0.9.19', default-features = false }
+sp-runtime          = { git = 'https://github.com/paritytech/substrate.git', branch = 'polkadot-v0.9.19' }
 # External Dependencies
-serde = { version = "1.0.136", optional = true, features = ["derive"] }
-sp-std = { default-features = false, version = '4.0.0' }
+sp-std              = { git = 'https://github.com/paritytech/substrate.git', branch = 'polkadot-v0.9.19' }
 pallet-loans-rpc-runtime-api = { default-features = false, path = "runtime_api"}

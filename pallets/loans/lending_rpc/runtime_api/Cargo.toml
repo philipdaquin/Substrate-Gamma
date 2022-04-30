@@ -10,10 +10,9 @@ publish = false
 repository = "https://github.com/substrate-developer-hub/substrate-node-template/"
 
 [dependencies]
-codec = { package = 'parity-scale-codec', version = '3.0.0', default-features = false, features = ['derive'] }
-sp-api = { git = 'https://github.com/paritytech/substrate.git', branch = 'polkadot-v0.9.19', default-features = false }
+codec      = { package = 'parity-scale-codec', version = '3.0.0', default-features = false, features = ['derive'] }
+sp-api     = { git = 'https://github.com/paritytech/substrate.git', branch = 'polkadot-v0.9.19', default-features = false }
 sp-runtime = { git = 'https://github.com/paritytech/substrate.git', branch = 'polkadot-v0.9.19', default-features = false }
-sp-std = { git = 'https://github.com/paritytech/substrate.git', branch = 'polkadot-v0.9.19' }
 
 [features]
 default = ['std']
@@ -21,5 +20,4 @@ std = [
 	'codec/std', 
 	'sp-api/std', 
 	'sp-runtime/std',
-	'sp-std/std'
 ]
