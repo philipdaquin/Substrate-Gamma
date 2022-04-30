@@ -10,7 +10,7 @@ pub trait MultiAsset<AccountId, AssetID, Balance> {
 		to: AccountId, 
 		asset_id: AssetID, 
 		amount: Balance
-	) -> DispatchResult;
+	) -> sp_std::result::Result<(), &'static str>;
 }
 
 pub trait AssetBalance<AssetId, AccountId, Balance> { 

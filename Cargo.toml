@@ -1,9 +1,9 @@
 [workspace]
 members = [
     "node",
-    # "pallets/assets",
-    "pallets/loans",
-    "pallets/loans/lending_rpc"
+    "pallets/assets",
+    # "pallets/loans",
+    # "pallets/loans/lending_rpc",
     # "pallets/price_oracle",
     # "pallets/common",
     # "pallets/amm",

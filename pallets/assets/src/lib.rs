@@ -125,14 +125,8 @@ pub mod pallet {
 				from.clone(), 
 				value, 
 				asset_id,
-				Event::<T>::Transferred { 
-					asset_id,
-					from: from,
-					to: account_id,
-					amount: value 
-				}
-			)
-			
+			);
+			Ok(())
 		}
 		///	Burn Assets
 		/// Decrease the asset balance of an account
@@ -169,10 +163,9 @@ pub mod pallet {
 			to: T::AccountId, 
 			value: T::Balance,
 			asset_id: T::AssetID,
-			transferred: Event<T>
-		) -> DispatchResult { 
+		) -> sp_std::result::Result<(), &'static str> { 
 			let (target_account, user_account) = 
-			((asset_id, to), (asset_id, from));
+			((asset_id, to.clone()), (asset_id, from.clone()));
 			//	Get user Balance 
 			let user_balance = Self::get_balances(user_account.clone());
 			//	Check the balance of sender
@@ -183,7 +176,13 @@ pub mod pallet {
 			Balances::<T>::insert(user_account, user_balance - value);
 			Balances::<T>::mutate(target_account, |target_balance| *target_balance += value);
 
-			Self::deposit_event(transferred);
+			Self::deposit_event(Event::<T>::Transferred { 
+				asset_id,
+				from,
+				to, 
+				amount: value
+			});
+
 			Ok(())
 		}
 		pub fn add_price(price: FixedU128, asset_id: T::AssetID) -> DispatchResult { 

@@ -25,7 +25,7 @@ frame-benchmarking = { default-features = false, version = "4.0.0-dev", git = "h
 
 # External Dependencies
 serde = { version = "1.0.136", optional = true }
-sp-std = { default-features = false, version = '4.0.0' }
+sp-std = { git = 'https://github.com/paritytech/substrate.git', branch = 'polkadot-v0.9.19', default-features = false }
 assets = {path="../assets", default-features = false, version = '4.0.0-dev'}
 common = { path = "../common", default-features = false, version = "4.0.0-dev" }
 sp-runtime = { default-features = false, version = "6.0.0", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.18" }
