@@ -108,7 +108,7 @@ use super::*;
 		}
 		fn fetch_prices() -> Result<u32, HttpError> { 
 			let (request, deadline) = (Request::get(API_URL), 
-				offchain::timestamp().add(sp_runtime::offchain::Duration::from_millis(2000)));;
+				offchain::timestamp().add(sp_runtime::offchain::Duration::from_millis(2000)));
 			let pending = request 
 				.deadline(deadline)
 				.send()

@@ -14,6 +14,7 @@ targets = ["x86_64-unknown-linux-gnu"]
 
 [dev-dependencies]
 sp-core = { default-features = false, version = "6.0.0", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.18" }
+sp-io = { default-features = false, version = "6.0.0", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.18" }
 
 [dependencies]
 codec = { package = "parity-scale-codec", version = "3.0.0", default-features = false, features = ["derive",]}
@@ -27,8 +28,7 @@ sp-std = { default-features = false, version = '4.0.0' }
 assets = { version = "4.0.0-dev", path= "../assets", default-features = false}
 sp-runtime = { default-features = false, version = "6.0.0", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.18" }
 log = "0.4.16"
-sp-io = { default-features = false, version = "6.0.0", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.18" }
-common = { path = "../common", version = "4.0.0-dev" }
+common = { path = "../common", default-features = false, version = "4.0.0-dev" }
 
 
 
@@ -42,7 +42,9 @@ std = [
 	"frame-benchmarking/std",
 	"serde",
 	"sp-std/std",
-	"assets/std"
+	"assets/std",
+	# "sp-io/std",
+	"common/std"
 ]
 
 runtime-benchmarks = ["frame-benchmarking/runtime-benchmarks"]

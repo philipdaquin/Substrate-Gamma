@@ -57,7 +57,7 @@ loans = {version = "4.0.0-dev", default-features = false, path = "../pallets/loa
 assets = {version = "4.0.0-dev", default-features = false, path = "../pallets/assets"}
 price_oracle = {version = "4.0.0-dev", default-features = false, path = "../pallets/price_oracle"}
 amm = {version = "4.0.0-dev", default-features = false, path = "../pallets/amm"}
-getrandom = { version = "0.2", features = ["js"] }
+getrandom = { version = "0.2", default-features = false, features = ["js"] }
 
 [build-dependencies]
 substrate-wasm-builder = { version = "5.0.0-dev", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.18" }
@@ -65,6 +65,7 @@ substrate-wasm-builder = { version = "5.0.0-dev", git = "https://github.com/pari
 [features]
 default = ["std"]
 std = [
+	"getrandom/std",
 	"codec/std",
 	"scale-info/std",
 	"frame-executive/std",
