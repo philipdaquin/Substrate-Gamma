@@ -52,7 +52,7 @@ pub mod pallet {
 		_, Blake2_128Concat, (T::AssetID, T::AccountId), T::Balance, ValueQuery>;
 	/// The inherent asset in this platform
 	#[pallet::storage]
-	#[pallet::getter(fn get_inherent_asset)]
+	#[pallet::getter(fn get_default_asset)]
 	pub type PlatformAsset<T: Config> = StorageValue<_, T::AssetID>;
 	///	The Price of the asset
 	#[pallet::storage]

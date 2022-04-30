@@ -7,14 +7,15 @@ pub use pallet::*;
 use frame_support::pallet_prelude::*;
 use frame_system::pallet_prelude::*;
 mod traits;
-use common::{MultiAsset, AssetBalance};
+use common::{MultiAsset, AssetBalance, DefaultAsset};
 use frame_support::traits::Randomness;
 use frame_system::WeightInfo;
 use sp_runtime::{traits::{AtLeast32Bit, AtLeast32BitUnsigned, AccountIdConversion, Zero, Bounded}, FixedU128};
 use frame_support::PalletId;
 use assets;
 use sp_std::result::Result;
-
+use sp_runtime::FixedPointOperand;
+		
 
 #[frame_support::pallet]
 pub mod pallet {
@@ -26,10 +27,13 @@ use super::*;
 
 	/// Configure the pallet by specifying the parameters and types on which it depends.
 	#[pallet::config]
-	pub trait Config: frame_system::Config + assets::Config {
+	pub trait Config: frame_system::Config  {
 		/// Because this pallet emits events, it depends on the runtime's definition of an event.
 		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
 		///	Weight information for extrinsics 
+		type Balance: Member + Parameter + AtLeast32BitUnsigned + FixedPointOperand + Default + Copy + MaxEncodedLen + TypeInfo;
+		///	The arithmetic type of asset identifier
+		type AssetID: Parameter + Default + AtLeast32BitUnsigned + Copy + MaxEncodedLen + TypeInfo + codec::HasCompact;
 		type SwapsWeight: WeightInfo;
 		///	MultiAsset Trasnsfer
 		type MultiAsset: MultiAsset<Self::AccountId, Self::AssetID, Self::Balance>;
@@ -42,7 +46,11 @@ use super::*;
 		type AssetBalance: AssetBalance<Self::AssetID, Self::AccountId, Self::Balance>;
 		///	The origin which may set the Protocol Fee 
 		type ForceOrigin: EnsureOrigin<Self::Origin>;
+		///	Platform Assets
+		type DefaultAsset: DefaultAsset<Self::AssetID>;
 	}
+
+	type AccountIdOf<T> = <T as frame_system::Config>::AccountId;
 	type AssetIdOf<T> = <T as assets::Config>::AssetID;
 	type BalanceOf<T> = <T as assets::Config>::Balance;
 
@@ -55,7 +63,7 @@ use super::*;
 	///	Auxiliarry Storage used to track pool ids
 	#[pallet::storage]
 	#[pallet::getter(fn pool_id)]
-	pub type PoolIndex<T> = StorageValue<_, u32, ValueQuery>;
+	pub type PoolIndex<T: Config> = StorageValue<_, u32, ValueQuery>;
 
 	///	Accounts of Pools
 	#[pallet::storage]
@@ -226,7 +234,7 @@ use super::*;
 		) -> DispatchResult { 
 
 			let account_id = ensure_signed(origin)?;
-			let base_id = assets::Pallet::<T>::get_inherent_asset().expect("");
+			let base_id = T::DefaultAsset::get_default_asset();
 			let pool_id = Self::get_pools(base_id.clone()).expect("");
 			let pool_liquidity = Self::get_total_liquidity(base_id).expect("");
 			let pair_asset_liquidity = Self::get_lp(pair_id.clone(), account_id.clone()).expect("");
@@ -287,7 +295,7 @@ use super::*;
 			max_input: T::Balance
 		) -> DispatchResult {
 			let account_id = ensure_signed(origin)?;
-			let base_id = assets::Pallet::<T>::get_inherent_asset().unwrap();
+			let base_id = T::DefaultAsset::get_default_asset();
 			let fee_rate = Self::get_fee();
 			
 			Self::do_swap(
@@ -345,7 +353,7 @@ use super::*;
 			input_amount: T::Balance,
 			fee_rate: T::Rate 
 		) -> DispatchResult { 
-			let base_id = assets::Pallet::<T>::get_inherent_asset().expect("");
+			let base_id = T::DefaultAsset::get_default_asset();
 			let (input_acc, output_acc) = account_id;
 			let (a, b) = asset_id;
 			let (pool_a, pool_b) = (
@@ -396,7 +404,7 @@ use super::*;
 			fee: T::Rate
 		) -> Result<T::Balance, DispatchError> { 
 			//	Base Asset From the Protocol
-			let base_id = assets::Pallet::<T>::get_inherent_asset().expect("");
+			let base_id = T::DefaultAsset::get_default_asset();
 			//	Pool Address of Asset 
 			let pool_id = Self::get_pools(asset_id).expect("");
 			//	Base amount balanec inside the pool_id 

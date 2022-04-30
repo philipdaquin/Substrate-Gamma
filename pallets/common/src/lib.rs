@@ -16,3 +16,7 @@ pub trait MultiAsset<AccountId, AssetID, Balance> {
 pub trait AssetBalance<AssetId, AccountId, Balance> { 
 	fn balance(asset_id: AssetId, account_id: AccountId) -> Balance;
 }
+
+pub trait DefaultAsset<AssetID> { 
+	fn get_default_asset() -> AssetID;
+}
