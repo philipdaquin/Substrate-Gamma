@@ -29,8 +29,6 @@ use super::*;
 	pub trait Config: frame_system::Config + assets::Config {
 		/// Because this pallet emits events, it depends on the runtime's definition of an event.
 		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
-		/// Defines the fees taken out of each trade and sent back to the AMM pool
-		type LpFee: Parameter + AtLeast32BitUnsigned + Default + Copy;
 		///	Weight information for extrinsics 
 		type SwapsWeight: WeightInfo;
 		///	MultiAsset Trasnsfer

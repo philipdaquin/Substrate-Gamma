@@ -62,6 +62,7 @@ pub type Index = u32;
 /// A hash of some data used by the chain.
 pub type Hash = sp_core::H256;
 
+
 /// Opaque types. These are used by the CLI to instantiate machinery that don't need to know
 /// the specifics of the runtime. They can then be made to be agnostic over specific formats
 /// of data like extrinsics, allowing for them to continue syncing the network through upgrades
@@ -270,6 +271,61 @@ impl pallet_sudo::Config for Runtime {
 impl pallet_template::Config for Runtime {
 	type Event = Event;
 }
+// ----------------------- Pallet Config Types ----------------------//
+pub type AssetID = u64;
+pub type Rate = u64;
+
+/// Configure the pallet-template in pallets/template.
+impl assets::Config for Runtime {
+	type Event = Event;
+	type AssetID = AssetID;
+	type Balance = Balance;
+}
+/// Configure the pallet-template in pallets/template.
+impl amm::Config for Runtime {
+	type Event = Event;
+	type SwapsWeight = ();
+	type MultiAsset = Assets;
+	type PalletId = LoansPalletId;
+	type Rate = Rate;
+	type AssetBalance = Assets;
+	type ForceOrigin = AmmForceOrigin;
+
+}
+parameter_types! {
+	pub const AMMPalletId: PalletId = PalletId(*b"par/loan");
+	pub const AmmForceOrigin = EnsureRoot<AccountId>;
+}
+/// Configure the pallet-template in pallets/template.
+impl loans::Config for Runtime {
+	type Event = Event;
+	type LiquidationThreshold = LoansThreshold;
+	type AssetID = AssetID;
+	type Balance = Balance;
+	type PalletId = LoansPalletId;
+	type DefaultSet = LoansDefaultSet;
+	type MultiAsset = Assets;
+	type Oracle = PriceOracle;
+}
+parameter_type! { 
+	pub const LoansThreshold: FixedU128 = 1;
+	pub const LoansPalletId: PalletId = PalletId(*b"par/ammp");
+	pub const LoansDefaultSet: AssetID = 1_000u64;
+}
+/// Configure the pallet-template in pallets/template.
+impl price_oracle::Config for Runtime {
+	type Event = Event;
+	type Call = Call;
+	type UnsignedPriority = UnsignedPriority;
+	type UnsignedInterval = UnsignedInterval;
+
+}
+parameter_types! {
+	pub const UnsignedPriority: u32 = 5;
+	pub const UnsignedInterval: BlockNUmber = 4;
+}
+
+// -------------------------------------------------------------------//
 
 // Create the runtime by composing the FRAME pallets that were previously configured.
 construct_runtime!(
@@ -286,8 +342,13 @@ construct_runtime!(
 		Balances: pallet_balances,
 		TransactionPayment: pallet_transaction_payment,
 		Sudo: pallet_sudo,
+
 		// Include the custom logic from the pallet-template in the runtime.
 		TemplateModule: pallet_template,
+		Assets: assets,
+		Amm: amm,
+		PriceOracle: price_oracle,
+		Loans: loans
 	}
 );
 

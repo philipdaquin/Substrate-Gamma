@@ -95,7 +95,7 @@ pub mod pallet {
 		_,
 		Blake2_128Concat,
 		AccountIdOf<T>, 
-		std::vec::Vec<T::AssetID>,
+		sp_std::vec::Vec<T::AssetID>,
 		ValueQuery,
 
  	>; 

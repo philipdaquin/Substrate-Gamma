@@ -27,7 +27,7 @@ frame-benchmarking = { default-features = false, version = "4.0.0-dev", git = "h
 serde = { version = "1.0.136", optional = true }
 sp-std = { default-features = false, version = '4.0.0' }
 sp-runtime = { default-features = false, version = "6.0.0", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.18" }
-common = { path = "../common", version = "4.0.0-dev" }
+common = { path = "../common", default-features = false, version = "4.0.0-dev" }
 
 [features]
 default = ["std"]

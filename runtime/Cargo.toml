@@ -56,7 +56,8 @@ pallet-template = { version = "4.0.0-dev", default-features = false, path = "../
 loans = {version = "4.0.0-dev", default-features = false, path = "../pallets/loans"}
 assets = {version = "4.0.0-dev", default-features = false, path = "../pallets/assets"}
 price_oracle = {version = "4.0.0-dev", default-features = false, path = "../pallets/price_oracle"}
-
+amm = {version = "4.0.0-dev", default-features = false, path = "../pallets/amm"}
+getrandom = { version = "0.2", features = ["js"] }
 
 [build-dependencies]
 substrate-wasm-builder = { version = "5.0.0-dev", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.18" }
@@ -93,7 +94,8 @@ std = [
 	# AMM 
 	"loans/std",
 	"assets/std",
-	"price_oracle/std"
+	"price_oracle/std",
+	"amm/std"
 ]
 runtime-benchmarks = [
 	"frame-benchmarking/runtime-benchmarks",

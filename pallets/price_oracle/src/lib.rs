@@ -13,7 +13,6 @@ use frame_system::{pallet_prelude::{*, BlockNumberFor}, Origin,
 use sp_io::offchain;
 use sp_std::vec::Vec;
 use lite_json::json::JsonValue;
-use std::cmp::Ordering;
 // #[cfg(test)]
 // mod tests;
 // #[cfg(feature = "runtime-benchmarks")]
