@@ -1,0 +1,26 @@
+[package]
+name = "pallet-lending-rpc"
+version = "1.8.4"
+description = "FRAME pallet template for defining custom runtime logic."
+authors = ["Substrate DevHub <https://github.com/substrate-developer-hub>"]
+homepage = "https://substrate.io/"
+edition = "2021"
+license = "Unlicense"
+publish = false
+repository = "https://github.com/substrate-developer-hub/substrate-node-template/"
+
+[dependencies]
+codec = { package = "parity-scale-codec", version = "3.0.0"}
+jsonrpc-core = "18.0.0"
+jsonrpc-core-client = "18.0.0"
+jsonrpc-derive = "18.0.0"
+sp-api = { git = 'https://github.com/paritytech/substrate.git', branch = 'polkadot-v0.9.19' }
+sp-blockchain = { git = 'https://github.com/paritytech/substrate.git', branch = 'polkadot-v0.9.19' }
+sp-core = { git = 'https://github.com/paritytech/substrate.git', branch = 'polkadot-v0.9.19' }
+sp-rpc = { git = 'https://github.com/paritytech/substrate.git', branch = 'polkadot-v0.9.19', default-features = false }
+sp-runtime = { git = 'https://github.com/paritytech/substrate.git', branch = 'polkadot-v0.9.19' }
+
+# External Dependencies
+serde = { version = "1.0.136", optional = true, features = ["derive"] }
+sp-std = { default-features = false, version = '4.0.0' }
+pallet-loans-rpc-runtime-api = { default-features = false, path = "runtime_api"}

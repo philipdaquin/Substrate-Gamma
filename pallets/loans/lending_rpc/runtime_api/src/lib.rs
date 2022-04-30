@@ -1,7 +1,7 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 use codec::Codec;
-
+use sp_std::vec;
 sp_api::decl_runtime_apis! { 
     pub trait LoansApi<AssetID, FixedU128, AccountId, Balance> where
         AssetID: Codec,
@@ -14,7 +14,6 @@ sp_api::decl_runtime_apis! {
         fn get_borrowing_interest_rate(asset_id: AssetID) -> FixedU128;
         fn get_user_asset_with_interest(asset_id: AssetID, account_id: AccountId) -> Balance;
         fn get_user_debt_with_interest(asset_id: AssetID, account_id: AccountId) -> Balance;
-        fn user_assets(account_id: AccountId) -> 
-        
+        // fn user_assets(account_id: AccountId) -> vec::Vec<AssetID>;
     }
 }

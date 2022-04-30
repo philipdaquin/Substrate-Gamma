@@ -3,8 +3,7 @@ members = [
     "node",
     # "pallets/assets",
     "pallets/loans",
-    # "pallets/loans/lending-rpc/",
-    # "pallets/loans/lending-rpc/runtime-api/",
+    "pallets/loans/lending_rpc"
     # "pallets/price_oracle",
     # "pallets/common",
     # "pallets/amm",
