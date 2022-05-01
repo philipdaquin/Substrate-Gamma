@@ -1,6 +1,6 @@
 [package]
 name = "pallet-lending-rpc"
-version = "1.8.4"
+version = "4.0.0-dev"
 description = "FRAME pallet template for defining custom runtime logic."
 authors = ["Substrate DevHub <https://github.com/substrate-developer-hub>"]
 homepage = "https://substrate.io/"
@@ -22,4 +22,4 @@ sp-rpc              = { git = 'https://github.com/paritytech/substrate.git', bra
 sp-runtime          = { git = 'https://github.com/paritytech/substrate.git', branch = 'polkadot-v0.9.19' }
 # External Dependencies
 sp-std              = { git = 'https://github.com/paritytech/substrate.git', branch = 'polkadot-v0.9.19' }
-pallet-loans-rpc-runtime-api = { default-features = false, path = "runtime_api"}
+pallet-loans-rpc-runtime-api = { version = "4.0.0-dev", default-features = false, path = "runtime_api"}

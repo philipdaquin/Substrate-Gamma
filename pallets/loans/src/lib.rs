@@ -16,7 +16,7 @@ use sp_runtime::{traits::AtLeast32BitUnsigned};
 use scale_info::TypeInfo;
 use sp_runtime::FixedPointNumber;
 use sp_std::{prelude::*, vec, convert::TryInto};
-
+pub use pallet::*;
 
 
 #[frame_support::pallet]
@@ -46,7 +46,7 @@ pub mod pallet {
 		type LiquidationThreshold: Get<FixedU128>;
 
 		#[pallet::constant]
-		type Palletid: Get<PalletId>;
+		type PalletId: Get<PalletId>;
 
 		#[pallet::constant]
 		type DefaultSet: Get<Self::AssetID>;
@@ -438,7 +438,7 @@ pub mod pallet {
 	impl<T: Config> Pallet<T> { 
 		///	'Into_Account' converts 'PALLET_ID' into a OnChain Account 
 		fn fund_account_id() -> T::AccountId { 
-			T::Palletid::get().into_account()
+			T::PalletId::get().into_account()
 		}
 		fn block_to_int(block: T::BlockNumber) -> Result<u32, DispatchError> { 
 			let into_int: u32 = TryInto::<u32>::try_into(block).ok().expect("");

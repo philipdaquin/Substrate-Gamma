@@ -1,6 +1,6 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 // `construct_runtime!` does a lot of recursion and requires us to increase the limit to 256.
-#![recursion_limit = "256"]
+#![recursion_limit = "512"]
 
 // Make the WASM binary available.
 #[cfg(feature = "std")]
@@ -257,7 +257,7 @@ parameter_types! {
 
 impl pallet_transaction_payment::Config for Runtime {
 	type OnChargeTransaction = CurrencyAdapter<Balances, ()>;
-	type TransactionByteFee = TransactionByteFee;
+	// type TransactionByteFee = TransactionByteFee;
 	type OperationalFeeMultiplier = ConstU8<5>;
 	type WeightToFee = IdentityFee<Balance>;
 	type FeeMultiplierUpdate = ();
@@ -280,11 +280,11 @@ pub use assets;
 /// Configure the pallet-template in pallets/template.
 impl assets::Config for Runtime {
 	type Event = Event;
-	// type AssetID = AssetID;
-	// type Balance = Balance;
+	type AssetID = AssetID;
+	type Balance = Balance;
 }
 // pub use amm;
-// /// Configure the pallet-template in pallets/template.
+// // Configure the pallet-template in pallets/template.
 // impl amm::Config for Runtime {
 // 	type Event = Event;
 // 	type SwapsWeight = ();
@@ -293,23 +293,23 @@ impl assets::Config for Runtime {
 // 	type Rate = Rate;
 // 	type AssetBalance = Assets;
 // 	type ForceOrigin = AmmForceOrigin;
-
 // }
 // parameter_types! {
 // 	pub const AMMPalletId: PalletId = PalletId(*b"par/loan");
-// 	pub const AmmForceOrigin = EnsureRoot<AccountId>;
+// 	pub const AmmForceOrigin: EnsureRoot = EnsureRoot<AccountId>;
 // }
 // pub use loans;
 // /// Configure the pallet-template in pallets/template.
 // impl loans::Config for Runtime {
 // 	type Event = Event;
-// 	type LiquidationThreshold = LoansThreshold;
-// 	type AssetID = AssetID;
 // 	type Balance = Balance;
+// 	type AssetID = AssetID;
+// 	type LiquidationThreshold = LoansThreshold;
+// 	type Oracle = PriceOracle;
+// 	type MultiAsset = Assets;
 // 	type PalletId = LoansPalletId;
 // 	type DefaultSet = LoansDefaultSet;
-// 	type MultiAsset = Assets;
-// 	type Oracle = PriceOracle;
+
 // }
 // parameter_types! { 
 // 	pub const LoansThreshold: FixedU128 = 1;
@@ -339,21 +339,21 @@ construct_runtime!(
 		NodeBlock = opaque::Block,
 		UncheckedExtrinsic = UncheckedExtrinsic
 	{
-		System: frame_system,
-		RandomnessCollectiveFlip: pallet_randomness_collective_flip,
-		Timestamp: pallet_timestamp,
-		Aura: pallet_aura,
-		Grandpa: pallet_grandpa,
-		Balances: pallet_balances,
-		TransactionPayment: pallet_transaction_payment,
-		Sudo: pallet_sudo,
+		System: frame_system::{Pallet, Call, Storage, Config, Event<T>} = 0,
+		RandomnessCollectiveFlip: pallet_randomness_collective_flip::{Pallet, Storage} = 1,
+		Timestamp: pallet_timestamp::{Pallet, Call, Storage, Inherent} = 2,
+		Aura: pallet_aura::{Pallet, Config<T>, Storage} = 3,
+		Grandpa: pallet_grandpa::{Pallet, Call, Storage, Config, Event} = 4,
+		Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>} = 5,
+		TransactionPayment: pallet_transaction_payment::{Pallet, Storage} = 6,
+		Sudo: pallet_sudo::{Pallet, Call, Config<T>, Storage, Event<T>} = 7,
 
 		// Include the custom logic from the pallet-template in the runtime.
-		TemplateModule: pallet_template,
-		Assets: assets,
-		// Amm: amm,
-		// PriceOracle: price_oracle,
-		// Loans: loans
+		TemplateModule: frame_system::{Pallet, Call, Storage, Config<T>, Event<T>} = 8,
+		Assets: assets::{Pallet, Call, Storage, Event<T>} = 9,
+		// Amm: amm::{Pallet, Call, Storage, Event<T> } = 10,
+		// PriceOracle: price_oracle::{Pallet, Call, Storage, Event<T>} = 11,
+		// Loans: loans::{ Pallet, Call, Storage, Event<T>} = 12,
 	}
 );
 
