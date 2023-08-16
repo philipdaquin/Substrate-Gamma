@@ -1,22 +1,22 @@
 # Gamma Finance [POC]
 * Do not use for production 
 
-## Actors
+### Actors
 - Admin 
 - Member
 - System 
 ## System functionalities
-## Amm 
+### Amm 
 - Fetch new prices
 - Add / Remove / Liquidity
 - Swap Assets
 - Set system trading fee
-## Assets 
+### Assets 
 - Create / Transfer/ Delete Assets
-## Loans
+### Loans
 - Supply / borrow/ repay loans
 - Liquidate assets
-## User 
+### User 
 - Create user/ authenticate user
 - Add / Remove / Delete Membership 
 
