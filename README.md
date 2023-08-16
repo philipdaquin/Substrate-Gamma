@@ -1,4 +1,26 @@
-# Substrate Gamma 
+# Gamma Finance [POC]
+* Do not use for production 
+
+## Actors
+- Admin 
+- Member
+- System 
+## System functionalities
+## Amm 
+- Fetch new prices
+- Add / Remove / Liquidity
+- Swap Assets
+- Set system trading fee
+## Assets 
+- Create / Transfer/ Delete Assets
+## Loans
+- Supply / borrow/ repay loans
+- Liquidate assets
+## User 
+- Create user/ authenticate user
+- Add / Remove / Delete Membership 
+
+
 
 ## Components
 - Lending 
