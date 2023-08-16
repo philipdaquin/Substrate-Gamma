@@ -1,5 +1,4 @@
-# Gamma Finance [POC]
-* Do not use for production 
+# Gamma Finance [POC] ** Do not use for production **  
 
 ### Actors
 - Admin 
